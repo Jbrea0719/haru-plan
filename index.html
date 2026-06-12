@@ -693,6 +693,18 @@
     }
     .cal-cell.sel.has-plan::after { background: rgba(255,255,255,.7); }
 
+    /* ─── PLAN REPEAT ─── */
+    .repeat-btn {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-radius: 6px; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .repeat-btn:hover { background: var(--bg); }
+    .repeat-btn.on { color: var(--accent); background: var(--accent-soft); }
+    .repeat-btn.on:hover { background: var(--accent-soft); filter: brightness(.95); }
+
     /* ─── PLAN ADD/REMOVE ─── */
     .add-row-btn {
       width: 100%; padding: 10px;
@@ -1380,11 +1392,17 @@ function initPlanState() {
     editTasks = existing.tasks.map(t => ({ ...t }));
     editPeople = existing.people.map(p => ({ ...p }));
   } else {
-    const carries = (todayData?.tasks || []).filter(t => !t.done);
-    editTasks = carries.slice(0, 6).map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: todayKey }));
+    const todayTasks = todayData?.tasks || [];
+    const carryTasks = todayTasks
+      .filter(t => !t.done)
+      .map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: todayKey, repeat: t.repeat || false }));
+    const repeatDone = todayTasks
+      .filter(t => t.done && t.repeat)
+      .map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: null, repeat: true }));
+    editTasks = [...carryTasks, ...repeatDone];
     editPeople = [{ id: uid(), name: '' }, { id: uid(), name: '' }];
   }
-  while (editTasks.length < 6)  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null });
+  while (editTasks.length < 6)  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null, repeat: false });
   while (editPeople.length < 2) editPeople.push({ id: uid(), name: '' });
 }
 
@@ -1430,9 +1448,11 @@ function renderPlanHTML() {
             oninput="onTaskInput(${i}, this.value)"
             onkeydown="taskKeyNav(event, ${i})"
           >
+          <button class="repeat-btn${t.repeat ? ' on' : ''}" onclick="toggleRepeat(${i})" title="${t.repeat ? '반복 켜짐 — 클릭해서 끄기' : '반복 꺼짐 — 클릭해서 켜기'}">🔁</button>
           ${canRemove ? `<button class="remove-row-btn" onclick="removeTask(${i})" title="삭제">×</button>` : ''}
         </div>
         ${isCarried ? `<div class="carried-hint">↑ 오늘 미완료에서 이월됨</div>` : ''}
+        ${t.repeat ? `<div class="carried-hint" style="color:var(--accent)">🔁 내일도 자동 추가됩니다</div>` : ''}
       </div>`;
   });
 
@@ -1516,9 +1536,15 @@ function savePlan() {
   setTimeout(() => renderPlan(), 350);
 }
 
+function toggleRepeat(i) {
+  syncPlanDOM();
+  editTasks[i].repeat = !editTasks[i].repeat;
+  renderPlanHTML();
+}
+
 function addTask() {
   syncPlanDOM();
-  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null });
+  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null, repeat: false });
   renderPlanHTML();
   setTimeout(() => {
     const last = document.querySelector(`.plan-input[data-ti="${editTasks.length - 1}"]`);
