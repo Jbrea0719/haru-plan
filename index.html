@@ -1539,7 +1539,7 @@ function timePickerHTML(timeStr, hAttr, mAttr) {
   const mInt = parseInt(parts[1]) || 0;
   const m = String([0,10,20,30,40,50].reduce((p,c) => Math.abs(c-mInt)<Math.abs(p-mInt)?c:p)).padStart(2,'0');
   let hopts = `<option value="">--</option>`;
-  for (let i = 0; i < 24; i++) {
+  for (let i = 10; i <= 22; i++) {
     const v = String(i).padStart(2,'0');
     hopts += `<option value="${v}"${h===v?' selected':''}>${v}</option>`;
   }
