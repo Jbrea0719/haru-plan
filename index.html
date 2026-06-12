@@ -246,6 +246,13 @@
     }
     .task-item.done .task-text { text-decoration: line-through; }
 
+    .empty-people {
+      padding: 14px 16px;
+      color: var(--text-muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
     .carried-tag {
       display: inline-block;
       font-size: 10px;
@@ -1240,14 +1247,16 @@ function renderExec() {
   html += `</div>`;
 
   // People
-  if (people.length > 0) {
-    html += `
-      <div class="section">
-        <div class="section-head">
-          <span class="section-title">오늘 만날 사람</span>
-          <span class="section-badge">${metCnt}/${people.length}</span>
-        </div>`;
+  html += `
+    <div class="section">
+      <div class="section-head">
+        <span class="section-title">오늘 만날 사람</span>
+        ${people.length > 0 ? `<span class="section-badge">${metCnt}/${people.length}</span>` : ''}
+      </div>`;
 
+  if (people.length === 0) {
+    html += `<div class="empty-people">오늘 만날 사람 없음</div>`;
+  } else {
     people.forEach(p => {
       const editingPerson = editingItem?.type === 'person' && editingItem?.id === p.id;
       if (editingPerson) {
@@ -1271,9 +1280,9 @@ function renderExec() {
         </div>`;
       }
     });
-
-    html += `</div>`;
   }
+
+  html += `</div>`;
 
   el.innerHTML = html;
 }
