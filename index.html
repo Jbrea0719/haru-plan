@@ -989,6 +989,7 @@
       <span>●</span> 연결 안 됨
     </div>
     <button class="panel-btn primary" onclick="saveSettings()">저장 &amp; 동기화 시작</button>
+    <button class="panel-btn" onclick="pushAllDays()" style="margin-top:8px">⬆ 내 데이터 전체 업로드</button>
     <button class="panel-btn" onclick="testSync()" style="margin-top:8px">연결 테스트</button>
   </div>
 </div>
@@ -1127,6 +1128,38 @@ async function saveSettings() {
   closeSettings();
   showToast('설정 저장 완료 — 동기화 중...');
   await pullFromCloud();
+  const localDays = Object.keys(load());
+  if (localDays.length) await pushAllDays();
+}
+
+async function pushAllDays() {
+  if (!cloudReady()) { showToast('동기화 코드를 먼저 설정해주세요'); return; }
+  const data = load();
+  const keys = Object.keys(data);
+  if (!keys.length) { showToast('업로드할 데이터가 없어요'); return; }
+  setSyncDot('syncing');
+  showToast(`업로드 중... (${keys.length}일)`);
+  let ok = 0, fail = 0;
+  for (const key of keys) {
+    try {
+      const day = data[key];
+      const { error } = await sbClient.from('haru_plans').upsert({
+        sync_code: getSyncCode(),
+        date_key: key,
+        tasks: day.tasks,
+        people: day.people,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'sync_code,date_key' });
+      if (error) throw error;
+      ok++;
+    } catch(e) {
+      fail++;
+      console.error('[pushAllDays]', key, e);
+    }
+  }
+  setSyncDot(fail ? 'err' : 'ok');
+  setTimeout(() => setSyncDot('idle'), 3000);
+  showToast(`업로드 완료: ${ok}일 성공${fail ? `, ${fail}일 실패` : ' ✓'}`);
 }
 
 async function testSync() {
@@ -1135,9 +1168,9 @@ async function testSync() {
   if (!code) { showToast('동기화 코드를 입력해주세요'); return; }
   showToast('테스트 중...');
   try {
-    const { data, error } = await sbClient.from('haru_plans').select('date_key').eq('sync_code', code).limit(1);
+    const { data, error } = await sbClient.from('haru_plans').select('date_key').eq('sync_code', code);
     if (error) throw error;
-    showToast('연결 성공 ✓ 행 수: ' + (data?.length ?? 0));
+    showToast('연결 성공 ✓ 저장된 날짜 수: ' + (data?.length ?? 0));
   } catch(e) {
     showToast('연결 실패: ' + (e?.message || e?.code || JSON.stringify(e)));
     console.error('[testSync]', e);
