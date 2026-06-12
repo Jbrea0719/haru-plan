@@ -1081,20 +1081,25 @@ async function pullFromCloud() {
   }
 }
 
+async function sbUpsertDay(code, dateKey, day) {
+  const payload = { tasks: day.tasks, people: day.people, updated_at: new Date().toISOString() };
+  const { data: upd, error: ue } = await sbClient.from('haru_plans')
+    .update(payload).eq('sync_code', code).eq('date_key', dateKey).select('date_key');
+  if (ue) throw ue;
+  if (!upd || !upd.length) {
+    const { error: ie } = await sbClient.from('haru_plans')
+      .insert({ sync_code: code, date_key: dateKey, ...payload });
+    if (ie) throw ie;
+  }
+}
+
 async function pushDay(dateKey) {
   if (!cloudReady()) return;
   const day = load()[dateKey];
   if (!day) return;
   setSyncDot('syncing');
   try {
-    const { error } = await sbClient.from('haru_plans').upsert({
-      sync_code: getSyncCode(),
-      date_key: dateKey,
-      tasks: day.tasks,
-      people: day.people,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'sync_code,date_key' });
-    if (error) throw error;
+    await sbUpsertDay(getSyncCode(), dateKey, day);
     setSyncDot('ok');
     setTimeout(() => setSyncDot('idle'), 2000);
   } catch(e) {
@@ -1155,27 +1160,21 @@ async function pushAllDays() {
   if (!keys.length) { showToast('업로드할 데이터가 없어요'); return; }
   setSyncDot('syncing');
   showToast(`업로드 중... (${keys.length}일)`);
-  let ok = 0, fail = 0;
+  let ok = 0, firstErr = '';
   for (const key of keys) {
     try {
-      const day = data[key];
-      const { error } = await sbClient.from('haru_plans').upsert({
-        sync_code: getSyncCode(),
-        date_key: key,
-        tasks: day.tasks,
-        people: day.people,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'sync_code,date_key' });
-      if (error) throw error;
+      await sbUpsertDay(getSyncCode(), key, data[key]);
       ok++;
     } catch(e) {
-      fail++;
+      if (!firstErr) firstErr = e?.message || e?.code || JSON.stringify(e);
       console.error('[pushAllDays]', key, e);
     }
   }
+  const fail = keys.length - ok;
   setSyncDot(fail ? 'err' : 'ok');
   setTimeout(() => setSyncDot('idle'), 3000);
-  showToast(`업로드 완료: ${ok}일 성공${fail ? `, ${fail}일 실패` : ' ✓'}`);
+  if (fail) showToast(`${ok}일 성공, ${fail}일 실패 — ${firstErr}`);
+  else showToast(`업로드 완료: ${ok}일 성공 ✓`);
 }
 
 async function testSync() {
