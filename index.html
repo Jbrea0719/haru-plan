@@ -982,6 +982,7 @@
       <input class="panel-input" id="input-sync-code" placeholder="예: JORDAN7" maxlength="12"
         oninput="this.value=this.value.toUpperCase()">
     </div>
+    <div id="local-data-info" style="margin-top:10px;font-size:12px;color:var(--text-muted)"></div>
   </div>
 
   <div class="panel-section">
@@ -991,6 +992,18 @@
     <button class="panel-btn primary" onclick="saveSettings()">저장 &amp; 동기화 시작</button>
     <button class="panel-btn" onclick="pushAllDays()" style="margin-top:8px">⬆ 내 데이터 전체 업로드</button>
     <button class="panel-btn" onclick="testSync()" style="margin-top:8px">연결 테스트</button>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-section-title">데이터 내보내기 / 가져오기</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+      다른 브라우저나 기기로 데이터를 직접 옮길 때 사용하세요
+    </div>
+    <button class="panel-btn" onclick="exportData()">⬇ JSON 파일로 내보내기</button>
+    <label class="panel-btn" style="margin-top:8px;cursor:pointer;text-align:center">
+      ⬆ JSON 파일 가져오기
+      <input type="file" accept=".json" style="display:none" onchange="importData(event)">
+    </label>
   </div>
 </div>
 
@@ -1099,6 +1112,9 @@ function openSettings() {
   document.getElementById('backdrop').classList.add('open');
   document.getElementById('input-sync-code').value = getSyncCode();
   updateConnBadge();
+  const days = Object.keys(load());
+  const el = document.getElementById('local-data-info');
+  if (el) el.textContent = days.length ? `이 기기에 저장된 날짜: ${days.length}일` : '이 기기에 저장된 데이터 없음';
 }
 
 function closeSettings() {
@@ -1175,6 +1191,47 @@ async function testSync() {
     showToast('연결 실패: ' + (e?.message || e?.code || JSON.stringify(e)));
     console.error('[testSync]', e);
   }
+}
+
+function exportData() {
+  const data = load();
+  const days = Object.keys(data);
+  if (!days.length) { showToast('내보낼 데이터가 없어요'); return; }
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'haru-plan-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`${days.length}일 데이터 내보내기 완료`);
+}
+
+function importData(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (typeof imported !== 'object' || Array.isArray(imported)) throw new Error('잘못된 형식');
+      const local = load();
+      let count = 0;
+      Object.keys(imported).forEach(k => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k)) { local[k] = imported[k]; count++; }
+      });
+      save(local);
+      render();
+      showToast(`${count}일 데이터 가져오기 완료 ✓`);
+      closeSettings();
+      if (cloudReady()) await pushAllDays();
+    } catch(err) {
+      showToast('가져오기 실패: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
 }
 
 // ═══════════════════════════════════════
