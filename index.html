@@ -316,6 +316,7 @@
 
     .person-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
     .person-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .person-agenda { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .time-badge  { font-size: 11px; color: var(--text-muted); }
     .meal-badge  { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 100px; }
     .meal-badge.lunch  { background: var(--amber-soft); color: var(--amber); }
@@ -1215,6 +1216,7 @@ function saveEdit() {
           person.timeFrom = hf ? `${hf}:${mf}` : '';
           person.timeTo   = ht ? `${ht}:${mt}` : '';
           person.meal     = document.getElementById(`edit-meal-${id}`)?.value  || '';
+          person.agenda   = document.getElementById(`edit-agenda-${id}`)?.value.trim() || '';
         }
       }
       save(data);
@@ -1255,7 +1257,7 @@ function addExecPerson(dKey) {
   const data = load();
   if (!data[dKey]) data[dKey] = { tasks: [], people: [] };
   const newId = uid();
-  data[dKey].people.push({ id: newId, name: '', timeFrom: '', timeTo: '', meal: '' });
+  data[dKey].people.push({ id: newId, name: '', agenda: '', timeFrom: '', timeTo: '', meal: '' });
   save(data);
   editingItem = { type: 'person', dateKey: dKey, id: newId, isNew: true };
   renderExec();
@@ -1443,9 +1445,13 @@ function renderExec() {
         <div class="person-item" style="align-items:flex-start">
           <div class="person-avatar" style="margin-top:4px">${esc(p.name.charAt(0))}</div>
           <div class="person-edit-form">
-            <input class="inline-edit-input" id="edit-input-${p.id}" value="${esc(p.name)}"
-                   placeholder="이름"
-                   onkeydown="if(event.key==='Escape')cancelEdit()">
+            <div style="display:flex;gap:6px">
+              <input class="inline-edit-input" id="edit-input-${p.id}" value="${esc(p.name)}"
+                     placeholder="이름" style="flex:0 0 90px;min-width:0"
+                     onkeydown="if(event.key==='Escape')cancelEdit()">
+              <input class="inline-edit-input" id="edit-agenda-${p.id}" value="${esc(p.agenda||'')}"
+                     placeholder="아젠다 (선택)" style="flex:1">
+            </div>
             <div class="person-edit-detail">
               ${timePickerHTML(p.timeFrom, `id="edit-hf-${p.id}"`, `id="edit-mf-${p.id}"`)}
               <span class="time-sep">~</span>
@@ -1471,6 +1477,7 @@ function renderExec() {
           <div class="person-avatar">${esc(p.name.charAt(0))}</div>
           <div class="person-info">
             <span class="person-name">${esc(p.name)}</span>
+            ${p.agenda ? `<span class="person-agenda">${esc(p.agenda)}</span>` : ''}
             ${(hasTime || mealLabel) ? `<div class="person-meta">
               ${hasTime ? `<span class="time-badge">🕐 ${p.timeFrom||'?'} ~ ${p.timeTo||'?'}</span>` : ''}
               ${mealLabel ? `<span class="meal-badge ${p.meal}">${mealLabel}</span>` : ''}
@@ -1538,7 +1545,7 @@ function timePickerHTML(timeStr, hAttr, mAttr) {
 }
 
 function newPerson(base) {
-  return { id: uid(), name: '', timeFrom: '', timeTo: '', meal: '', ...(base || {}) };
+  return { id: uid(), name: '', agenda: '', timeFrom: '', timeTo: '', meal: '', ...(base || {}) };
 }
 
 function syncPlanDOM() {
@@ -1560,6 +1567,9 @@ function syncPlanDOM() {
   });
   document.querySelectorAll('[data-pi-meal]').forEach(el => {
     const p = editPeople[+el.dataset.piMeal]; if (p) p.meal = el.value;
+  });
+  document.querySelectorAll('[data-pi-agenda]').forEach(el => {
+    const p = editPeople[+el.dataset.piAgenda]; if (p) p.agenda = el.value.trim();
   });
 }
 
@@ -1631,10 +1641,19 @@ function renderPlanHTML() {
           <input
             class="plan-input"
             type="text"
-            placeholder="이름 입력"
+            placeholder="이름"
             value="${esc(p.name)}"
             data-pi="${i}"
             oninput="onPersonInput(${i}, this.value)"
+            style="flex:0 0 90px;min-width:0"
+          >
+          <input
+            class="plan-input"
+            type="text"
+            placeholder="아젠다 (선택)"
+            value="${esc(p.agenda||'')}"
+            data-pi-agenda="${i}"
+            oninput="onAgendaInput(${i}, this.value)"
           >
           ${canRemove ? `<button class="remove-row-btn" onclick="removePerson(${i})" title="삭제">×</button>` : ''}
         </div>
@@ -1672,6 +1691,7 @@ function renderPlan() {
 // ═══════════════════════════════════════
 function onTaskInput(i, val) { editTasks[i].text = val.trim(); }
 function onPersonInput(i, val) { editPeople[i].name = val.trim(); }
+function onAgendaInput(i, val) { editPeople[i].agenda = val.trim(); }
 
 function taskKeyNav(e, i) {
   if (e.key === 'Enter') {
