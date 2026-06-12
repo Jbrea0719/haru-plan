@@ -997,9 +997,17 @@
   <div class="panel-section">
     <div class="panel-section-title">데이터 내보내기 / 가져오기</div>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
-      다른 브라우저나 기기로 데이터를 직접 옮길 때 사용하세요
+      클라우드 동기화가 안 될 때 직접 옮길 수 있어요
     </div>
-    <button class="panel-btn" onclick="exportData()">⬇ JSON 파일로 내보내기</button>
+    <button class="panel-btn" onclick="exportText()">📋 텍스트 복사 (카카오 전송용)</button>
+    <button class="panel-btn" style="margin-top:8px" onclick="showImportText()">📋 텍스트 붙여넣기로 가져오기</button>
+    <div id="import-text-area" style="display:none;margin-top:8px">
+      <textarea id="import-textarea" rows="4"
+        style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:12px;resize:none;background:var(--surface);color:var(--text-primary);font-family:inherit"
+        placeholder="복사한 텍스트를 여기에 붙여넣으세요"></textarea>
+      <button class="panel-btn primary" style="margin-top:6px" onclick="importFromText()">가져오기</button>
+    </div>
+    <button class="panel-btn" style="margin-top:8px" onclick="exportData()">⬇ JSON 파일로 내보내기</button>
     <label class="panel-btn" style="margin-top:8px;cursor:pointer;text-align:center">
       ⬆ JSON 파일 가져오기
       <input type="file" accept=".json" style="display:none" onchange="importData(event)">
@@ -1189,6 +1197,51 @@ async function testSync() {
   } catch(e) {
     showToast('연결 실패: ' + (e?.message || e?.code || JSON.stringify(e)));
     console.error('[testSync]', e);
+  }
+}
+
+function exportText() {
+  const data = load();
+  if (!Object.keys(data).length) { showToast('내보낼 데이터가 없어요'); return; }
+  const text = JSON.stringify(data);
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('클립보드에 복사됐어요 — 카카오톡 나에게 보내기로 전송하세요');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('복사 완료 — 카카오톡 나에게 보내기로 전송하세요');
+  });
+}
+
+function showImportText() {
+  const area = document.getElementById('import-text-area');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+
+async function importFromText() {
+  const text = document.getElementById('import-textarea').value.trim();
+  if (!text) { showToast('텍스트를 붙여넣어 주세요'); return; }
+  try {
+    const imported = JSON.parse(text);
+    if (typeof imported !== 'object' || Array.isArray(imported)) throw new Error('잘못된 형식');
+    const local = load();
+    let count = 0;
+    Object.keys(imported).forEach(k => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(k)) { local[k] = imported[k]; count++; }
+    });
+    save(local);
+    render();
+    showToast(`${count}일 데이터 가져오기 완료 ✓`);
+    document.getElementById('import-textarea').value = '';
+    document.getElementById('import-text-area').style.display = 'none';
+    closeSettings();
+    if (cloudReady()) await pushAllDays();
+  } catch(err) {
+    showToast('가져오기 실패: 올바른 형식이 아닙니다');
   }
 }
 
