@@ -989,6 +989,7 @@
       <span>●</span> 연결 안 됨
     </div>
     <button class="panel-btn primary" onclick="saveSettings()">저장 &amp; 동기화 시작</button>
+    <button class="panel-btn" onclick="testSync()" style="margin-top:8px">연결 테스트</button>
   </div>
 </div>
 
@@ -1052,7 +1053,6 @@ async function pullFromCloud() {
     if (data && data.length) {
       const local = load();
       data.forEach(row => {
-        // cloud wins on conflict (last-write-wins by updated_at handled server-side)
         local[row.date_key] = { tasks: row.tasks, people: row.people };
       });
       save(local);
@@ -1062,6 +1062,8 @@ async function pullFromCloud() {
     setTimeout(() => setSyncDot('idle'), 3000);
   } catch(e) {
     setSyncDot('err');
+    showToast('동기화 오류: ' + (e?.message || e?.code || JSON.stringify(e)));
+    console.error('[haru-sync pull]', e);
   }
 }
 
@@ -1083,6 +1085,8 @@ async function pushDay(dateKey) {
     setTimeout(() => setSyncDot('idle'), 2000);
   } catch(e) {
     setSyncDot('err');
+    showToast('저장 오류: ' + (e?.message || e?.code || JSON.stringify(e)));
+    console.error('[haru-sync push]', e);
   }
 }
 
@@ -1123,6 +1127,21 @@ async function saveSettings() {
   closeSettings();
   showToast('설정 저장 완료 — 동기화 중...');
   await pullFromCloud();
+}
+
+async function testSync() {
+  if (!sbClient) { showToast('먼저 저장 버튼을 눌러주세요'); return; }
+  const code = document.getElementById('input-sync-code').value.trim().toUpperCase() || getSyncCode();
+  if (!code) { showToast('동기화 코드를 입력해주세요'); return; }
+  showToast('테스트 중...');
+  try {
+    const { data, error } = await sbClient.from('haru_plans').select('date_key').eq('sync_code', code).limit(1);
+    if (error) throw error;
+    showToast('연결 성공 ✓ 행 수: ' + (data?.length ?? 0));
+  } catch(e) {
+    showToast('연결 실패: ' + (e?.message || e?.code || JSON.stringify(e)));
+    console.error('[testSync]', e);
+  }
 }
 
 // ═══════════════════════════════════════
@@ -2030,7 +2049,7 @@ function deleteHistoryDay(key) {
   delete data[key];
   save(data);
   if (sbClient && getSyncCode()) {
-    sbClient.from('haru_plans').delete().eq('sync_code', getSyncCode()).eq('day_key', key).then(() => {});
+    sbClient.from('haru_plans').delete().eq('sync_code', getSyncCode()).eq('date_key', key).then(() => {});
   }
   renderHistory();
 }
