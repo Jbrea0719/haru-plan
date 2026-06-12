@@ -309,11 +309,42 @@
     }
 
     .person-name {
-      flex: 1;
       font-size: 15px;
       font-weight: 500;
     }
     .person-item.met .person-name { text-decoration: line-through; }
+
+    .person-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .person-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .time-badge  { font-size: 11px; color: var(--text-muted); }
+    .meal-badge  { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 100px; }
+    .meal-badge.lunch  { background: var(--amber-soft); color: var(--amber); }
+    .meal-badge.dinner { background: var(--accent-soft); color: var(--accent); }
+
+    /* person detail row in plan tab */
+    .person-detail-row {
+      display: flex; align-items: center; gap: 6px;
+      margin: 5px 0 4px 38px;
+      flex-wrap: wrap;
+    }
+    .time-sep { font-size: 13px; color: var(--text-muted); }
+    .time-input {
+      width: 90px; border: 1.5px solid var(--border); border-radius: 7px;
+      padding: 6px 8px; font-size: 13px; font-family: inherit;
+      background: var(--surface); color: var(--text-primary); outline: none;
+    }
+    .time-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .meal-select {
+      border: 1.5px solid var(--border); border-radius: 7px;
+      padding: 6px 10px; font-size: 13px; font-family: inherit;
+      background: var(--surface); color: var(--text-primary); outline: none; cursor: pointer;
+    }
+    .meal-select:focus { border-color: var(--accent); }
+
+    /* person edit form in exec tab */
+    .person-edit-form { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    .person-edit-detail { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .person-edit-actions { display: flex; gap: 4px; justify-content: flex-end; }
 
     .person-check {
       width: 22px;
@@ -1149,7 +1180,12 @@ function saveEdit() {
         if (task) task.text = newVal;
       } else {
         const person = day.people.find(p => p.id === id);
-        if (person) person.name = newVal;
+        if (person) {
+          person.name     = newVal;
+          person.timeFrom = document.getElementById(`edit-from-${id}`)?.value || '';
+          person.timeTo   = document.getElementById(`edit-to-${id}`)?.value   || '';
+          person.meal     = document.getElementById(`edit-meal-${id}`)?.value  || '';
+        }
       }
       save(data);
       pushDay(dateKey);
@@ -1189,7 +1225,7 @@ function addExecPerson(dKey) {
   const data = load();
   if (!data[dKey]) data[dKey] = { tasks: [], people: [] };
   const newId = uid();
-  data[dKey].people.push({ id: newId, name: '' });
+  data[dKey].people.push({ id: newId, name: '', timeFrom: '', timeTo: '', meal: '' });
   save(data);
   editingItem = { type: 'person', dateKey: dKey, id: newId, isNew: true };
   renderExec();
@@ -1374,20 +1410,41 @@ function renderExec() {
       const editingPerson = editingItem?.type === 'person' && editingItem?.id === p.id;
       if (editingPerson) {
         html += `
-        <div class="person-item">
-          <div class="person-avatar">${esc(p.name.charAt(0))}</div>
-          <div class="inline-edit-wrap">
+        <div class="person-item" style="align-items:flex-start">
+          <div class="person-avatar" style="margin-top:4px">${esc(p.name.charAt(0))}</div>
+          <div class="person-edit-form">
             <input class="inline-edit-input" id="edit-input-${p.id}" value="${esc(p.name)}"
-                   onkeydown="if(event.key==='Enter')saveEdit();else if(event.key==='Escape')cancelEdit()">
-            <button class="inline-confirm-btn" onclick="saveEdit()">✓</button>
-            <button class="inline-cancel-btn" onclick="cancelEdit()">×</button>
+                   placeholder="이름"
+                   onkeydown="if(event.key==='Escape')cancelEdit()">
+            <div class="person-edit-detail">
+              <input type="time" class="time-input" id="edit-from-${p.id}" value="${p.timeFrom||''}">
+              <span class="time-sep">~</span>
+              <input type="time" class="time-input" id="edit-to-${p.id}" value="${p.timeTo||''}">
+              <select class="meal-select" id="edit-meal-${p.id}">
+                <option value=""      ${!p.meal            ? 'selected' : ''}>식사 없음</option>
+                <option value="lunch" ${p.meal === 'lunch'  ? 'selected' : ''}>🍱 점심</option>
+                <option value="dinner"${p.meal === 'dinner' ? 'selected' : ''}>🍽 저녁</option>
+              </select>
+            </div>
+            <div class="person-edit-actions">
+              <button class="inline-confirm-btn" onclick="saveEdit()">✓ 저장</button>
+              <button class="inline-cancel-btn" onclick="cancelEdit()">×</button>
+            </div>
           </div>
         </div>`;
       } else {
+        const hasTime = p.timeFrom || p.timeTo;
+        const mealLabel = p.meal === 'lunch' ? '점심' : p.meal === 'dinner' ? '저녁' : '';
         html += `
         <div class="person-item ${p.met ? 'met' : ''}">
           <div class="person-avatar">${esc(p.name.charAt(0))}</div>
-          <span class="person-name">${esc(p.name)}</span>
+          <div class="person-info">
+            <span class="person-name">${esc(p.name)}</span>
+            ${(hasTime || mealLabel) ? `<div class="person-meta">
+              ${hasTime ? `<span class="time-badge">🕐 ${p.timeFrom||'?'} ~ ${p.timeTo||'?'}</span>` : ''}
+              ${mealLabel ? `<span class="meal-badge ${p.meal}">${mealLabel}</span>` : ''}
+            </div>` : ''}
+          </div>
           <button class="edit-btn" onclick="startEditPerson('${key}','${p.id}')">✏</button>
           <button class="del-btn" onclick="deletePerson('${key}','${p.id}')">🗑</button>
           <div class="person-check ${p.met ? 'met' : ''}" onclick="togglePerson('${key}','${p.id}')"></div>
@@ -1422,10 +1479,14 @@ function initPlanState() {
       .filter(t => t.done && t.repeat)
       .map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: null, repeat: true }));
     editTasks = [...carryTasks, ...repeatDone];
-    editPeople = [{ id: uid(), name: '' }, { id: uid(), name: '' }];
+    editPeople = [newPerson(), newPerson()];
   }
   while (editTasks.length < 6)  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null, repeat: false });
-  while (editPeople.length < 2) editPeople.push({ id: uid(), name: '' });
+  while (editPeople.length < 2) editPeople.push(newPerson());
+}
+
+function newPerson(base) {
+  return { id: uid(), name: '', timeFrom: '', timeTo: '', meal: '', ...(base || {}) };
 }
 
 function syncPlanDOM() {
@@ -1434,6 +1495,15 @@ function syncPlanDOM() {
   });
   document.querySelectorAll('.plan-input[data-pi]').forEach(el => {
     if (editPeople[+el.dataset.pi] !== undefined) editPeople[+el.dataset.pi].name = el.value.trim();
+  });
+  document.querySelectorAll('[data-pi-from]').forEach(el => {
+    const p = editPeople[+el.dataset.piFrom]; if (p) p.timeFrom = el.value;
+  });
+  document.querySelectorAll('[data-pi-to]').forEach(el => {
+    const p = editPeople[+el.dataset.piTo]; if (p) p.timeTo = el.value;
+  });
+  document.querySelectorAll('[data-pi-meal]').forEach(el => {
+    const p = editPeople[+el.dataset.piMeal]; if (p) p.meal = el.value;
   });
 }
 
@@ -1493,17 +1563,29 @@ function renderPlanHTML() {
   editPeople.forEach((p, i) => {
     const canRemove = editPeople.length > MIN_PEOPLE;
     html += `
-      <div class="plan-row">
-        <div class="plan-num green-num">${i === 0 ? '👤' : '👥'}</div>
-        <input
-          class="plan-input"
-          type="text"
-          placeholder="이름 입력"
-          value="${esc(p.name)}"
-          data-pi="${i}"
-          oninput="onPersonInput(${i}, this.value)"
-        >
-        ${canRemove ? `<button class="remove-row-btn" onclick="removePerson(${i})" title="삭제">×</button>` : ''}
+      <div>
+        <div class="plan-row">
+          <div class="plan-num green-num">${i === 0 ? '👤' : '👥'}</div>
+          <input
+            class="plan-input"
+            type="text"
+            placeholder="이름 입력"
+            value="${esc(p.name)}"
+            data-pi="${i}"
+            oninput="onPersonInput(${i}, this.value)"
+          >
+          ${canRemove ? `<button class="remove-row-btn" onclick="removePerson(${i})" title="삭제">×</button>` : ''}
+        </div>
+        <div class="person-detail-row">
+          <input type="time" class="time-input" value="${p.timeFrom||''}" data-pi-from="${i}" placeholder="--:--">
+          <span class="time-sep">~</span>
+          <input type="time" class="time-input" value="${p.timeTo||''}" data-pi-to="${i}" placeholder="--:--">
+          <select class="meal-select" data-pi-meal="${i}">
+            <option value=""      ${!p.meal            ? 'selected' : ''}>식사 없음</option>
+            <option value="lunch" ${p.meal === 'lunch'  ? 'selected' : ''}>🍱 점심</option>
+            <option value="dinner"${p.meal === 'dinner' ? 'selected' : ''}>🍽 저녁</option>
+          </select>
+        </div>
       </div>`;
   });
 
@@ -1587,7 +1669,7 @@ function removeTask(i) {
 
 function addPerson() {
   syncPlanDOM();
-  editPeople.push({ id: uid(), name: '' });
+  editPeople.push(newPerson());
   renderPlanHTML();
   setTimeout(() => {
     const last = document.querySelector(`.plan-input[data-pi="${editPeople.length - 1}"]`);
