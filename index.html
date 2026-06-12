@@ -808,6 +808,16 @@
     .hist-bar-fill.none     { background: var(--border); }
     .hist-bar-fill.future   { background: var(--accent); }
 
+    .hist-del-btn {
+      width: 26px; height: 26px; flex-shrink: 0;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-radius: 6px; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s; margin-left: 6px;
+    }
+    .hist-del-btn:hover  { background: #fee2e2; color: #ef4444; }
+    .hist-del-btn:active { background: #fecaca; }
+
     .hist-meta {
       display: flex;
       align-items: center;
@@ -1760,6 +1770,7 @@ function renderHistory() {
           <div class="hist-top">
             <span class="hist-date">${dateStr}</span>
             <span class="hist-badge ${status}">${badgeText}</span>
+            <button class="hist-del-btn" onclick="event.stopPropagation();deleteHistoryDay('${k}')" title="기록 삭제">🗑</button>
           </div>
           <div class="hist-bar-track">
             <div class="hist-bar-fill ${status}" style="width:${isFuture ? 100 : pct}%"></div>
@@ -1780,6 +1791,19 @@ function goToDate(key) {
   viewDate = new Date(key + 'T00:00:00');
   refreshHeader();
   switchTab('exec');
+}
+
+function deleteHistoryDay(key) {
+  const d = new Date(key + 'T00:00:00');
+  const label = `${parseInt(key.slice(5,7))}월 ${parseInt(key.slice(8,10))}일`;
+  if (!confirm(`${label} 기록을 삭제할까요?\n되돌릴 수 없어요.`)) return;
+  const data = load();
+  delete data[key];
+  save(data);
+  if (sbClient && getSyncCode()) {
+    sbClient.from('haru_plans').delete().eq('sync_code', getSyncCode()).eq('day_key', key).then(() => {});
+  }
+  renderHistory();
 }
 
 // ═══════════════════════════════════════
