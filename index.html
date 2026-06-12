@@ -1095,13 +1095,17 @@ function startEditPerson(dateKey, personId) {
 
 function saveEdit() {
   if (!editingItem) return;
-  const { type, dateKey, id } = editingItem;
+  const { type, dateKey, id, isNew } = editingItem;
   const input = document.getElementById(`edit-input-${id}`);
   const newVal = input?.value.trim();
-  if (newVal) {
-    const data = load();
-    const day = data[dateKey];
-    if (day) {
+  const data = load();
+  const day = data[dateKey];
+  if (day) {
+    if (!newVal && isNew) {
+      if (type === 'task') day.tasks = day.tasks.filter(t => t.id !== id);
+      else day.people = day.people.filter(p => p.id !== id);
+      save(data);
+    } else if (newVal) {
       if (type === 'task') {
         const task = day.tasks.find(t => t.id === id);
         if (task) task.text = newVal;
@@ -1118,8 +1122,40 @@ function saveEdit() {
 }
 
 function cancelEdit() {
+  if (editingItem?.isNew) {
+    const { type, dateKey: dKey, id } = editingItem;
+    const data = load();
+    const day = data[dKey];
+    if (day) {
+      if (type === 'task') day.tasks = day.tasks.filter(t => t.id !== id);
+      else day.people = day.people.filter(p => p.id !== id);
+      save(data);
+    }
+  }
   editingItem = null;
   renderExec();
+}
+
+function addExecTask(dKey) {
+  const data = load();
+  if (!data[dKey]) data[dKey] = { tasks: [], people: [] };
+  const newId = uid();
+  data[dKey].tasks.push({ id: newId, text: '', done: false });
+  save(data);
+  editingItem = { type: 'task', dateKey: dKey, id: newId, isNew: true };
+  renderExec();
+  setTimeout(() => { document.getElementById(`edit-input-${newId}`)?.focus(); }, 30);
+}
+
+function addExecPerson(dKey) {
+  const data = load();
+  if (!data[dKey]) data[dKey] = { tasks: [], people: [] };
+  const newId = uid();
+  data[dKey].people.push({ id: newId, name: '' });
+  save(data);
+  editingItem = { type: 'person', dateKey: dKey, id: newId, isNew: true };
+  renderExec();
+  setTimeout(() => { document.getElementById(`edit-input-${newId}`)?.focus(); }, 30);
 }
 
 function deleteTask(dateKey, taskId) {
@@ -1275,7 +1311,9 @@ function renderExec() {
     }
   });
 
-  html += `</div>`;
+  html += `
+    <button class="add-row-btn" onclick="addExecTask('${key}')">＋ 할일 추가</button>
+  </div>`;
 
   // People
   html += `
@@ -1314,7 +1352,9 @@ function renderExec() {
     });
   }
 
-  html += `</div>`;
+  html += `
+    <button class="add-row-btn" onclick="addExecPerson('${key}')">＋ 사람 추가</button>
+  </div>`;
 
   el.innerHTML = html;
 }
