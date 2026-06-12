@@ -565,6 +565,43 @@
     .conn-badge.connected { background: var(--green-soft); color: var(--green); }
     .conn-badge.disconnected { background: var(--bg); color: var(--text-muted); }
 
+    /* ─── INLINE EDIT ─── */
+    .edit-btn {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-radius: 6px; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .edit-btn:hover  { background: var(--bg); color: var(--text-secondary); }
+    .edit-btn:active { background: var(--border); }
+
+    .inline-edit-wrap {
+      flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0;
+    }
+    .inline-edit-input {
+      flex: 1; min-width: 0;
+      border: 1.5px solid var(--accent);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 15px; font-family: inherit;
+      background: var(--surface); color: var(--text-primary);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .inline-confirm-btn {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: none; background: var(--accent); color: #fff;
+      border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .inline-cancel-btn {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: none; background: var(--bg); color: var(--text-secondary);
+      border-radius: 7px; cursor: pointer; font-size: 17px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
     /* ─── CALENDAR POPUP ─── */
     .cal-btn {
       background: none; border: none;
@@ -1018,6 +1055,56 @@ let activeTab = 'exec';
 let editTasks = [];
 let editPeople = [];
 
+// Inline edit state for exec tab
+let editingItem = null; // { type: 'task'|'person', dateKey, id }
+
+function startEditTask(dateKey, taskId) {
+  editingItem = { type: 'task', dateKey, id: taskId };
+  renderExec();
+  setTimeout(() => {
+    const el = document.getElementById(`edit-input-${taskId}`);
+    if (el) { el.focus(); el.select(); }
+  }, 30);
+}
+
+function startEditPerson(dateKey, personId) {
+  editingItem = { type: 'person', dateKey, id: personId };
+  renderExec();
+  setTimeout(() => {
+    const el = document.getElementById(`edit-input-${personId}`);
+    if (el) { el.focus(); el.select(); }
+  }, 30);
+}
+
+function saveEdit() {
+  if (!editingItem) return;
+  const { type, dateKey, id } = editingItem;
+  const input = document.getElementById(`edit-input-${id}`);
+  const newVal = input?.value.trim();
+  if (newVal) {
+    const data = load();
+    const day = data[dateKey];
+    if (day) {
+      if (type === 'task') {
+        const task = day.tasks.find(t => t.id === id);
+        if (task) task.text = newVal;
+      } else {
+        const person = day.people.find(p => p.id === id);
+        if (person) person.name = newVal;
+      }
+      save(data);
+      pushDay(dateKey);
+    }
+  }
+  editingItem = null;
+  renderExec();
+}
+
+function cancelEdit() {
+  editingItem = null;
+  renderExec();
+}
+
 // ═══════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════
@@ -1125,14 +1212,29 @@ function renderExec() {
       </div>`;
 
   tasks.forEach(t => {
-    html += `
+    const editingTask = editingItem?.type === 'task' && editingItem?.id === t.id;
+    if (editingTask) {
+      html += `
+      <div class="task-item ${t.carriedFrom ? 'carried' : ''}">
+        <div class="task-check ${t.done ? 'done' : ''}"></div>
+        <div class="inline-edit-wrap">
+          <input class="inline-edit-input" id="edit-input-${t.id}" value="${esc(t.text)}"
+                 onkeydown="if(event.key==='Enter')saveEdit();else if(event.key==='Escape')cancelEdit()">
+          <button class="inline-confirm-btn" onclick="saveEdit()">✓</button>
+          <button class="inline-cancel-btn" onclick="cancelEdit()">×</button>
+        </div>
+      </div>`;
+    } else {
+      html += `
       <div class="task-item ${t.done ? 'done' : ''} ${t.carriedFrom ? 'carried' : ''}">
         <div class="task-check ${t.done ? 'done' : ''}" onclick="toggleTask('${key}','${t.id}')"></div>
         <div class="task-body">
           <div class="task-text">${esc(t.text)}</div>
           ${t.carriedFrom ? `<div class="carried-tag">전날 이월</div>` : ''}
         </div>
+        <button class="edit-btn" onclick="startEditTask('${key}','${t.id}')">✏</button>
       </div>`;
+    }
   });
 
   html += `</div>`;
@@ -1147,12 +1249,27 @@ function renderExec() {
         </div>`;
 
     people.forEach(p => {
-      html += `
+      const editingPerson = editingItem?.type === 'person' && editingItem?.id === p.id;
+      if (editingPerson) {
+        html += `
+        <div class="person-item">
+          <div class="person-avatar">${esc(p.name.charAt(0))}</div>
+          <div class="inline-edit-wrap">
+            <input class="inline-edit-input" id="edit-input-${p.id}" value="${esc(p.name)}"
+                   onkeydown="if(event.key==='Enter')saveEdit();else if(event.key==='Escape')cancelEdit()">
+            <button class="inline-confirm-btn" onclick="saveEdit()">✓</button>
+            <button class="inline-cancel-btn" onclick="cancelEdit()">×</button>
+          </div>
+        </div>`;
+      } else {
+        html += `
         <div class="person-item ${p.met ? 'met' : ''}">
           <div class="person-avatar">${esc(p.name.charAt(0))}</div>
           <span class="person-name">${esc(p.name)}</span>
+          <button class="edit-btn" onclick="startEditPerson('${key}','${p.id}')">✏</button>
           <div class="person-check ${p.met ? 'met' : ''}" onclick="togglePerson('${key}','${p.id}')"></div>
         </div>`;
+      }
     });
 
     html += `</div>`;
