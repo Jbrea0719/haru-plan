@@ -395,6 +395,20 @@
     }
     .plan-notice strong { font-weight: 700; }
 
+    .plan-date-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .plan-nav-btn {
+      width: 28px; height: 28px;
+      border: none; background: rgba(255,255,255,.5); color: var(--accent);
+      border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .plan-nav-btn:hover:not(:disabled) { background: rgba(255,255,255,.8); }
+    .plan-nav-btn:disabled { opacity: .3; cursor: default; }
+
     .plan-section { margin-bottom: 24px; }
 
     .plan-label {
@@ -1140,6 +1154,7 @@ let activeTab = 'exec';
 // Editing state for plan tab
 let editTasks = [];
 let editPeople = [];
+let planOffset = 1; // days from today(), 1 = tomorrow, max 60
 
 // Inline edit state for exec tab
 let editingItem = null; // { type: 'task'|'person', dateKey, id }
@@ -1462,23 +1477,28 @@ function renderExec() {
 
 function initPlanState() {
   const data = load();
-  const tKey = dateKey(addDays(viewDate, 1));
-  const todayKey = dateKey(viewDate);
+  const planDate = addDays(today(), planOffset);
+  const tKey     = dateKey(planDate);
+  const prevKey  = dateKey(addDays(today(), planOffset - 1));
   const existing = data[tKey];
-  const todayData = data[todayKey];
+  const prevData = data[prevKey];
 
   if (existing) {
-    editTasks = existing.tasks.map(t => ({ ...t }));
+    editTasks  = existing.tasks.map(t => ({ ...t }));
     editPeople = existing.people.map(p => ({ ...p }));
-  } else {
-    const todayTasks = todayData?.tasks || [];
-    const carryTasks = todayTasks
+  } else if (planOffset === 1) {
+    // 내일 계획: 오늘 미완료 이월
+    const prevTasks = prevData?.tasks || [];
+    const carryTasks = prevTasks
       .filter(t => !t.done)
-      .map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: todayKey, repeat: t.repeat || false }));
-    const repeatDone = todayTasks
+      .map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: prevKey, repeat: t.repeat || false }));
+    const repeatDone = prevTasks
       .filter(t => t.done && t.repeat)
       .map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: null, repeat: true }));
-    editTasks = [...carryTasks, ...repeatDone];
+    editTasks  = [...carryTasks, ...repeatDone];
+    editPeople = [newPerson(), newPerson()];
+  } else {
+    editTasks  = [];
     editPeople = [newPerson(), newPerson()];
   }
   while (editTasks.length < 6)  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null, repeat: false });
@@ -1509,15 +1529,21 @@ function syncPlanDOM() {
 
 function renderPlanHTML() {
   const data = load();
-  const tomorrow = addDays(viewDate, 1);
-  const tKey = dateKey(tomorrow);
+  const planDate = addDays(today(), planOffset);
+  const tKey = dateKey(planDate);
   const existing = data[tKey];
   const hasCarries = editTasks.some(t => t.carriedFrom);
   const MIN_TASKS = 6, MIN_PEOPLE = 2;
+  const offsetLabel = planOffset === 1 ? '내일' : `${planOffset}일 뒤`;
 
   let html = `
     <div class="plan-notice">
-      📅 <strong>${formatDate(tomorrow)}</strong> 계획을 세워요
+      <div class="plan-date-nav">
+        <button class="plan-nav-btn" onclick="planNav(-1)" ${planOffset <= 1 ? 'disabled' : ''}>‹</button>
+        <span>📅 <strong>${formatDate(planDate)}</strong></span>
+        <button class="plan-nav-btn" onclick="planNav(1)" ${planOffset >= 60 ? 'disabled' : ''}>›</button>
+      </div>
+      ${offsetLabel} 계획을 세워요
       ${hasCarries && !existing ? '<br>↩ 오늘 미완료 항목이 자동으로 이월됐어요' : ''}
     </div>
 
@@ -1636,13 +1662,20 @@ function savePlan() {
   }
 
   const data = load();
-  const tKey = dateKey(addDays(viewDate, 1));
+  const tKey = dateKey(addDays(today(), planOffset));
   data[tKey] = { tasks, people, savedAt: new Date().toISOString() };
   save(data);
   pushDay(tKey);
 
   showToast('계획이 저장됐어요 ✓');
   setTimeout(() => renderPlan(), 350);
+}
+
+function planNav(delta) {
+  syncPlanDOM();
+  planOffset = Math.max(1, Math.min(60, planOffset + delta));
+  initPlanState();
+  renderPlanHTML();
 }
 
 function toggleRepeat(i) {
