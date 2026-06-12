@@ -193,6 +193,22 @@
       font-weight: 500;
     }
 
+    /* ─── DRAG & DROP ─── */
+    .drag-handle {
+      width: 18px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--border); font-size: 17px; letter-spacing: -1px;
+      cursor: grab; user-select: none; touch-action: none;
+      margin-right: 2px;
+    }
+    .drag-handle:active { cursor: grabbing; color: var(--accent); }
+    [draggable].dnd-dragging { opacity: .3; }
+    [draggable].dnd-over {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-radius: var(--radius-sm);
+    }
+
     /* ─── TASK ITEM ─── */
     .task-item {
       background: var(--surface);
@@ -1306,7 +1322,7 @@ function renderExec() {
         <span class="section-badge">${doneCnt}/${total} 완료</span>
       </div>`;
 
-  tasks.forEach(t => {
+  tasks.forEach((t, idx) => {
     const editingTask = editingItem?.type === 'task' && editingItem?.id === t.id;
     if (editingTask) {
       html += `
@@ -1321,7 +1337,13 @@ function renderExec() {
       </div>`;
     } else {
       html += `
-      <div class="task-item ${t.done ? 'done' : ''} ${t.carriedFrom ? 'carried' : ''}">
+      <div class="task-item ${t.done ? 'done' : ''} ${t.carriedFrom ? 'carried' : ''}"
+           draggable="true" data-dnd-idx="${idx}"
+           ondragstart="dndStart(event,'exec','${key}',${idx})"
+           ondragover="dndOver(event,${idx})"
+           ondrop="dndDrop(event,'exec','${key}',${idx})"
+           ondragend="dndEnd()">
+        <div class="drag-handle" ontouchstart="touchDndStart(event,'exec','${key}',${idx})">⠿</div>
         <div class="task-check ${t.done ? 'done' : ''}" onclick="toggleTask('${key}','${t.id}')"></div>
         <div class="task-body">
           <div class="task-text">${esc(t.text)}</div>
@@ -1436,8 +1458,13 @@ function renderPlanHTML() {
     const isCarried = !!t.carriedFrom;
     const canRemove = editTasks.length > MIN_TASKS;
     html += `
-      <div>
+      <div draggable="true" data-dnd-idx="${i}"
+           ondragstart="dndStart(event,'plan','',${i})"
+           ondragover="dndOver(event,${i})"
+           ondrop="dndDrop(event,'plan','',${i})"
+           ondragend="dndEnd()">
         <div class="plan-row">
+          <div class="drag-handle" ontouchstart="touchDndStart(event,'plan','',${i})">⠿</div>
           <div class="plan-num">${i + 1}</div>
           <input
             class="plan-input${isCarried ? ' carried' : ''}"
@@ -1834,6 +1861,118 @@ function deleteHistoryDay(key) {
 
 // ═══════════════════════════════════════
 // INIT
+// ═══════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════
+let _dnd = null;
+let _touchClone = null;
+
+function dndStart(e, type, key, idx) {
+  _dnd = { type, key, idx: +idx, toIdx: +idx };
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(idx)); // Firefox requires this
+  requestAnimationFrame(() => e.currentTarget.classList.add('dnd-dragging'));
+}
+
+function dndOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (!_dnd) return;
+  const toIdx = +idx;
+  if (toIdx !== _dnd.toIdx) {
+    document.querySelectorAll('.dnd-over').forEach(el => el.classList.remove('dnd-over'));
+    if (toIdx !== _dnd.idx) e.currentTarget.classList.add('dnd-over');
+    _dnd.toIdx = toIdx;
+  }
+}
+
+function dndDrop(e, type, key, idx) {
+  e.preventDefault();
+  if (!_dnd) return;
+  dndCommit(_dnd.type, _dnd.key, _dnd.idx, +idx);
+}
+
+function dndEnd() {
+  document.querySelectorAll('.dnd-dragging, .dnd-over').forEach(el =>
+    el.classList.remove('dnd-dragging', 'dnd-over')
+  );
+  _dnd = null;
+}
+
+// Touch drag
+function touchDndStart(e, type, key, idx) {
+  if (e.touches.length !== 1) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const touch = e.touches[0];
+  const item = e.currentTarget.closest('[data-dnd-idx]');
+  const rect = item.getBoundingClientRect();
+  _dnd = { type, key, idx: +idx, toIdx: undefined, item,
+           startTouchY: touch.clientY, itemTop: rect.top };
+  // Visual clone
+  _touchClone = item.cloneNode(true);
+  Object.assign(_touchClone.style, {
+    position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+    width: rect.width + 'px', zIndex: '9999', opacity: '.85',
+    pointerEvents: 'none', boxShadow: '0 8px 28px rgba(0,0,0,.22)',
+    transform: 'scale(1.02)', borderRadius: '10px', transition: 'none',
+  });
+  document.body.appendChild(_touchClone);
+  item.style.opacity = '.25';
+  document.addEventListener('touchmove', _onTouchMove, { passive: false });
+  document.addEventListener('touchend',  _onTouchEnd,  { once: true });
+}
+
+function _onTouchMove(e) {
+  if (!_dnd || !_touchClone) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const dy = touch.clientY - _dnd.startTouchY;
+  _touchClone.style.top = (_dnd.itemTop + dy) + 'px';
+  // Find item under finger
+  _touchClone.style.visibility = 'hidden';
+  const under = document.elementFromPoint(touch.clientX, touch.clientY);
+  _touchClone.style.visibility = '';
+  const target = under?.closest('[data-dnd-idx]');
+  document.querySelectorAll('.dnd-over').forEach(el => el.classList.remove('dnd-over'));
+  if (target && target !== _dnd.item) {
+    target.classList.add('dnd-over');
+    _dnd.toIdx = +target.dataset.dndIdx;
+  } else {
+    _dnd.toIdx = undefined;
+  }
+}
+
+function _onTouchEnd() {
+  document.removeEventListener('touchmove', _onTouchMove);
+  if (_touchClone) { _touchClone.remove(); _touchClone = null; }
+  if (_dnd?.item) _dnd.item.style.opacity = '';
+  document.querySelectorAll('.dnd-over').forEach(el => el.classList.remove('dnd-over'));
+  if (_dnd?.toIdx !== undefined && _dnd.toIdx !== _dnd.idx) {
+    dndCommit(_dnd.type, _dnd.key, _dnd.idx, _dnd.toIdx);
+  }
+  _dnd = null;
+}
+
+function dndCommit(type, key, fromIdx, toIdx) {
+  if (fromIdx === toIdx) return;
+  if (type === 'exec') {
+    const data = load();
+    const tasks = data[key]?.tasks;
+    if (!tasks) return;
+    const [item] = tasks.splice(fromIdx, 1);
+    tasks.splice(toIdx, 0, item);
+    save(data);
+    pushDay(key);
+    renderExec();
+  } else {
+    syncPlanDOM();
+    const [item] = editTasks.splice(fromIdx, 1);
+    editTasks.splice(toIdx, 0, item);
+    renderPlanHTML();
+  }
+}
+
 // ═══════════════════════════════════════
 refreshHeader();
 render();
