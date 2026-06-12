@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>하루 계획</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --bg: #F5F4F0;
+      --surface: #FFFFFF;
+      --border: #E8E3DC;
+      --text-primary: #1C1C1E;
+      --text-secondary: #6B6B70;
+      --text-muted: #AEAEB2;
+      --accent: #4F46E5;
+      --accent-soft: #EEF2FF;
+      --green: #16A34A;
+      --green-soft: #DCFCE7;
+      --amber: #D97706;
+      --amber-soft: #FEF3C7;
+      --red: #DC2626;
+      --radius: 14px;
+      --radius-sm: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100svh;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* ─── HEADER ─── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .app-name {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .date-nav {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 20px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s;
+    }
+    .nav-btn:active { background: var(--bg); }
+
+    .date-chip {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+
+    .today-jump {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border: none;
+      padding: 4px 8px;
+      border-radius: 100px;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+
+    /* ─── TABS ─── */
+    .tabs {
+      display: flex;
+      gap: 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ─── CONTENT ─── */
+    .content {
+      padding: 20px 16px 60px;
+    }
+
+    /* ─── STATS CARD ─── */
+    .stats-card {
+      background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+
+    .stats-label {
+      font-size: 12px;
+      opacity: 0.75;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    .stats-row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 12px;
+    }
+
+    .stat-item { display: flex; flex-direction: column; }
+    .stat-num { font-size: 26px; font-weight: 800; line-height: 1; }
+    .stat-desc { font-size: 11px; opacity: 0.7; margin-top: 3px; }
+
+    .progress-track {
+      background: rgba(255,255,255,0.25);
+      height: 5px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #fff;
+      border-radius: 3px;
+      transition: width 0.4s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ─── SECTION ─── */
+    .section { margin-bottom: 24px; }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+    }
+
+    .section-badge {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ─── TASK ITEM ─── */
+    .task-item {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 13px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      margin-bottom: 7px;
+      transition: opacity 0.2s, border-color 0.2s;
+      cursor: default;
+    }
+    .task-item.carried { border-left: 3px solid var(--amber); }
+    .task-item.done { opacity: 0.45; }
+
+    .task-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      margin-top: 1px;
+    }
+    .task-check:active { transform: scale(0.88); }
+    .task-check.done {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .task-check.done::after {
+      content: '';
+      width: 5px;
+      height: 9px;
+      border: 2px solid #fff;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg) translateY(-1px);
+    }
+
+    .task-body { flex: 1; min-width: 0; }
+
+    .task-text {
+      font-size: 15px;
+      line-height: 1.4;
+      word-break: keep-all;
+    }
+    .task-item.done .task-text { text-decoration: line-through; }
+
+    .carried-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--amber-soft);
+      color: var(--amber);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+
+    /* ─── PERSON ITEM ─── */
+    .person-item {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 7px;
+      transition: opacity 0.2s;
+    }
+    .person-item.met { opacity: 0.45; }
+
+    .person-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .person-name {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .person-item.met .person-name { text-decoration: line-through; }
+
+    .person-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .person-check:active { transform: scale(0.88); }
+    .person-check.met {
+      background: var(--green);
+      border-color: var(--green);
+    }
+    .person-check.met::after {
+      content: '';
+      width: 5px;
+      height: 9px;
+      border: 2px solid #fff;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg) translateY(-1px);
+    }
+
+    /* ─── EMPTY STATE ─── */
+    .empty {
+      text-align: center;
+      padding: 56px 24px;
+    }
+    .empty-icon { font-size: 52px; margin-bottom: 14px; line-height: 1; }
+    .empty-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--text-secondary); }
+    .empty-desc { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ─── PLAN FORM ─── */
+    .plan-notice {
+      background: var(--accent-soft);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 500;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+    .plan-notice strong { font-weight: 700; }
+
+    .plan-section { margin-bottom: 24px; }
+
+    .plan-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .plan-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+
+    .plan-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .plan-num.green-num {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .plan-input {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 11px 13px;
+      font-size: 15px;
+      background: var(--surface);
+      color: var(--text-primary);
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .plan-input::placeholder { color: var(--text-muted); }
+    .plan-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .plan-input.carried {
+      background: #FFFBEB;
+      border-color: #FCD34D;
+    }
+
+    .carried-hint {
+      font-size: 11px;
+      color: var(--amber);
+      margin: -2px 0 5px 34px;
+      font-weight: 500;
+    }
+
+    .save-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      font-family: inherit;
+      letter-spacing: -0.2px;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .save-btn:active { transform: scale(0.98); background: #4338CA; }
+
+    /* ─── SYNC BADGE ─── */
+    .sync-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    .sync-dot.syncing { background: var(--amber); animation: pulse .8s infinite; }
+    .sync-dot.ok      { background: var(--green); }
+    .sync-dot.err     { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ─── SETTINGS BTN ─── */
+    .settings-btn {
+      background: none; border: none;
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      font-size: 17px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary);
+      transition: background .1s;
+    }
+    .settings-btn:active { background: var(--bg); }
+
+    /* ─── SETTINGS OVERLAY ─── */
+    .overlay-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 40;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s;
+    }
+    .overlay-backdrop.open { opacity: 1; pointer-events: all; }
+
+    .settings-panel {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      z-index: 50;
+      padding: 0 0 40px;
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      max-height: 90svh;
+      overflow-y: auto;
+    }
+    .settings-panel.open { transform: translateX(-50%) translateY(0); }
+
+    .panel-handle {
+      width: 36px; height: 4px;
+      background: var(--border); border-radius: 2px;
+      margin: 12px auto 0;
+    }
+
+    .panel-title {
+      font-size: 16px; font-weight: 700;
+      padding: 16px 20px 0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .panel-close {
+      background: none; border: none;
+      font-size: 22px; cursor: pointer;
+      color: var(--text-muted); padding: 4px;
+    }
+
+    .panel-section { padding: 16px 20px 0; }
+
+    .panel-section-title {
+      font-size: 11px; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .field-label {
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      margin-bottom: 5px; margin-top: 12px;
+    }
+    .field-label:first-of-type { margin-top: 0; }
+
+    .panel-input {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 11px 13px;
+      font-size: 14px; font-family: inherit;
+      background: var(--surface); color: var(--text-primary);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .panel-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .panel-input.mono { font-family: monospace; font-size: 13px; }
+
+    .sync-code-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .sync-code-row .panel-input { flex: 1; font-size: 18px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+
+    .panel-btn {
+      padding: 12px 18px;
+      border: none; border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: background .15s;
+    }
+    .panel-btn.primary { background: var(--accent); color: #fff; width: 100%; margin-top: 16px; padding: 14px; font-size: 15px; border-radius: var(--radius); }
+    .panel-btn.primary:active { background: #4338CA; }
+    .panel-btn.secondary { background: var(--bg); color: var(--text-secondary); }
+    .panel-btn.secondary:active { background: var(--border); }
+
+    .setup-guide {
+      background: #F8F9FF;
+      border: 1.5px solid #C7D2FE;
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-size: 13px; line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .setup-guide ol { padding-left: 18px; }
+    .setup-guide li { margin-bottom: 4px; }
+    .setup-guide code {
+      background: #E0E7FF; color: #4338CA;
+      padding: 1px 5px; border-radius: 4px;
+      font-size: 12px; font-family: monospace;
+    }
+    .setup-guide a { color: var(--accent); }
+
+    .sync-status-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text-muted);
+      margin-top: 12px;
+    }
+    .conn-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 600;
+      padding: 4px 10px; border-radius: 100px;
+    }
+    .conn-badge.connected { background: var(--green-soft); color: var(--green); }
+    .conn-badge.disconnected { background: var(--bg); color: var(--text-muted); }
+
+    /* ─── TOAST ─── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1C1C1E;
+      color: #fff;
+      padding: 11px 20px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 100;
+      transition: transform 0.28s cubic-bezier(.4,0,.2,1), opacity 0.28s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ─── ALL DONE BANNER ─── */
+    .all-done-banner {
+      background: linear-gradient(135deg, #16A34A, #15803D);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .all-done-banner .banner-emoji { font-size: 28px; display: block; margin-bottom: 6px; }
+
+    /* ─── HISTORY ─── */
+    .history-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .hs-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .hs-num { font-size: 22px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+    .hs-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+
+    .history-month { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin: 20px 0 8px; }
+    .history-month:first-of-type { margin-top: 0; }
+
+    .hist-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 13px 14px;
+      margin-bottom: 7px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .hist-card:active { border-color: var(--accent); }
+
+    .hist-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .hist-date { font-size: 14px; font-weight: 600; }
+    .hist-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 100px;
+    }
+    .hist-badge.perfect { background: var(--green-soft); color: var(--green); }
+    .hist-badge.partial { background: var(--amber-soft); color: var(--amber); }
+    .hist-badge.none    { background: var(--bg); color: var(--text-muted); }
+    .hist-badge.future  { background: var(--accent-soft); color: var(--accent); }
+
+    .hist-bar-track {
+      background: var(--bg);
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .hist-bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+    .hist-bar-fill.perfect { background: var(--green); }
+    .hist-bar-fill.partial  { background: var(--amber); }
+    .hist-bar-fill.none     { background: var(--border); }
+    .hist-bar-fill.future   { background: var(--accent); }
+
+    .hist-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .hist-meta-item { display: flex; align-items: center; gap: 3px; }
+    .hist-carried { margin-left: auto; font-size: 11px; color: var(--amber); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="app-name">하루 계획</span>
+      <div class="sync-dot" id="sync-dot" title="동기화 상태"></div>
+    </div>
+    <div class="date-nav">
+      <button class="nav-btn" onclick="changeDay(-1)" title="이전 날">‹</button>
+      <span class="date-chip" id="date-display"></span>
+      <button class="nav-btn" onclick="changeDay(1)" title="다음 날">›</button>
+      <button class="today-jump" id="today-btn" onclick="goToday()" style="display:none">오늘</button>
+      <button class="settings-btn" onclick="openSettings()" title="설정">⚙</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-exec" onclick="switchTab('exec')">오늘 실행</div>
+    <div class="tab" id="tab-plan" onclick="switchTab('plan')">내일 계획</div>
+    <div class="tab" id="tab-history" onclick="switchTab('history')">기록</div>
+  </div>
+</div>
+
+<div class="content">
+  <div id="view-exec"></div>
+  <div id="view-plan" style="display:none"></div>
+  <div id="view-history" style="display:none"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- SETTINGS -->
+<div class="overlay-backdrop" id="backdrop" onclick="closeSettings()"></div>
+<div class="settings-panel" id="settings-panel">
+  <div class="panel-handle"></div>
+  <div class="panel-title">
+    동기화 설정
+    <button class="panel-close" onclick="closeSettings()">×</button>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-section-title">내 동기화 코드</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">
+      모든 기기에서 같은 코드를 입력하면 데이터가 동기화돼요
+    </div>
+    <div class="sync-code-row">
+      <input class="panel-input" id="input-sync-code" placeholder="예: JORDAN7" maxlength="12"
+        oninput="this.value=this.value.toUpperCase()">
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-section-title">Supabase 연결</div>
+    <div id="conn-status" class="conn-badge disconnected" style="margin-bottom:12px">
+      <span>●</span> 연결 안 됨
+    </div>
+    <div class="field-label">Project URL</div>
+    <input class="panel-input mono" id="input-sb-url" placeholder="https://xxxx.supabase.co">
+    <div class="field-label">Anon Key</div>
+    <input class="panel-input mono" id="input-sb-key" placeholder="eyJhbGci...">
+    <button class="panel-btn primary" onclick="saveSettings()">저장 &amp; 동기화 시작</button>
+  </div>
+
+  <div class="panel-section" style="margin-top:20px">
+    <div class="panel-section-title">처음 설정하는 방법</div>
+    <div class="setup-guide">
+      <ol>
+        <li><a href="https://supabase.com" target="_blank">supabase.com</a> 가입 → 새 프로젝트 생성 (무료)</li>
+        <li>좌측 메뉴 <strong>SQL Editor</strong> 클릭 후 아래 SQL 실행:</li>
+      </ol>
+      <div style="margin:8px 0;background:#1e1e2e;color:#cdd6f4;padding:10px 12px;border-radius:8px;font-family:monospace;font-size:11.5px;line-height:1.6;overflow-x:auto">
+create table haru_plans (<br>
+&nbsp;&nbsp;sync_code text not null,<br>
+&nbsp;&nbsp;date_key text not null,<br>
+&nbsp;&nbsp;tasks jsonb default '[]',<br>
+&nbsp;&nbsp;people jsonb default '[]',<br>
+&nbsp;&nbsp;updated_at timestamptz default now(),<br>
+&nbsp;&nbsp;primary key (sync_code, date_key)<br>
+);<br>
+alter table haru_plans disable row level security;
+      </div>
+      <ol start="3">
+        <li>좌측 <strong>Project Settings → API</strong>에서<br>
+            <code>Project URL</code>과 <code>anon key</code> 복사</li>
+        <li>위 칸에 붙여넣고 저장</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════
+const KEY = 'haru-v1';
+const SB_URL_KEY = 'haru-sb-url';
+const SB_KEY_KEY = 'haru-sb-key';
+const SYNC_CODE_KEY = 'haru-sync-code';
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
+  catch { return {}; }
+}
+
+function save(data) {
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+// ═══════════════════════════════════════
+// CLOUD SYNC
+// ═══════════════════════════════════════
+let sbClient = null;
+
+function getSyncCode() { return localStorage.getItem(SYNC_CODE_KEY) || ''; }
+
+function cloudReady() { return !!(sbClient && getSyncCode()); }
+
+function setSyncDot(state) { // 'idle'|'syncing'|'ok'|'err'
+  const el = document.getElementById('sync-dot');
+  if (!el) return;
+  el.className = 'sync-dot' + (state !== 'idle' ? ' ' + state : '');
+}
+
+function initCloud() {
+  const url = localStorage.getItem(SB_URL_KEY) || '';
+  const key = localStorage.getItem(SB_KEY_KEY) || '';
+  if (!url || !key) { sbClient = null; return; }
+  try {
+    sbClient = supabase.createClient(url, key);
+    if (getSyncCode()) pullFromCloud();
+  } catch(e) { sbClient = null; }
+}
+
+async function pullFromCloud() {
+  if (!cloudReady()) return;
+  setSyncDot('syncing');
+  try {
+    const { data, error } = await sbClient
+      .from('haru_plans')
+      .select('date_key,tasks,people')
+      .eq('sync_code', getSyncCode());
+    if (error) throw error;
+    if (data && data.length) {
+      const local = load();
+      data.forEach(row => {
+        // cloud wins on conflict (last-write-wins by updated_at handled server-side)
+        local[row.date_key] = { tasks: row.tasks, people: row.people };
+      });
+      save(local);
+      render();
+    }
+    setSyncDot('ok');
+    setTimeout(() => setSyncDot('idle'), 3000);
+  } catch(e) {
+    setSyncDot('err');
+  }
+}
+
+async function pushDay(dateKey) {
+  if (!cloudReady()) return;
+  const day = load()[dateKey];
+  if (!day) return;
+  setSyncDot('syncing');
+  try {
+    const { error } = await sbClient.from('haru_plans').upsert({
+      sync_code: getSyncCode(),
+      date_key: dateKey,
+      tasks: day.tasks,
+      people: day.people,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'sync_code,date_key' });
+    if (error) throw error;
+    setSyncDot('ok');
+    setTimeout(() => setSyncDot('idle'), 2000);
+  } catch(e) {
+    setSyncDot('err');
+  }
+}
+
+// ═══════════════════════════════════════
+// SETTINGS PANEL
+// ═══════════════════════════════════════
+function openSettings() {
+  document.getElementById('settings-panel').classList.add('open');
+  document.getElementById('backdrop').classList.add('open');
+  // populate fields
+  document.getElementById('input-sync-code').value = getSyncCode();
+  document.getElementById('input-sb-url').value = localStorage.getItem(SB_URL_KEY) || '';
+  document.getElementById('input-sb-key').value = localStorage.getItem(SB_KEY_KEY) || '';
+  updateConnBadge();
+}
+
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('open');
+}
+
+function updateConnBadge() {
+  const el = document.getElementById('conn-status');
+  if (!el) return;
+  if (cloudReady()) {
+    el.className = 'conn-badge connected';
+    el.innerHTML = '<span>●</span> 연결됨';
+  } else {
+    el.className = 'conn-badge disconnected';
+    el.innerHTML = '<span>●</span> 연결 안 됨';
+  }
+}
+
+async function saveSettings() {
+  const code = document.getElementById('input-sync-code').value.trim().toUpperCase();
+  const url  = document.getElementById('input-sb-url').value.trim();
+  const key  = document.getElementById('input-sb-key').value.trim();
+
+  if (!code) { showToast('동기화 코드를 입력해주세요'); return; }
+  if (!url || !key) { showToast('Supabase URL과 Key를 입력해주세요'); return; }
+
+  localStorage.setItem(SYNC_CODE_KEY, code);
+  localStorage.setItem(SB_URL_KEY, url);
+  localStorage.setItem(SB_KEY_KEY, key);
+
+  initCloud();
+  updateConnBadge();
+  closeSettings();
+  showToast('설정 저장 완료 — 동기화 중...');
+  await pullFromCloud();
+}
+
+// ═══════════════════════════════════════
+// DATE UTILS
+// ═══════════════════════════════════════
+const DAYS = ['일','월','화','수','목','금','토'];
+
+function dateKey(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function isSameDay(a, b) {
+  return dateKey(a) === dateKey(b);
+}
+
+function today() { return new Date(); }
+
+function formatDate(d) {
+  const t = today();
+  const diff = Math.round((new Date(dateKey(d)) - new Date(dateKey(t))) / 86400000);
+  const base = `${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS[d.getDay()]}요일`;
+  if (diff === 0) return base + ' (오늘)';
+  if (diff === 1) return base + ' (내일)';
+  if (diff === -1) return base + ' (어제)';
+  return base;
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let viewDate = new Date();
+let activeTab = 'exec';
+
+// Editing state for plan tab
+let editTasks = [];
+let editPeople = [];
+
+// ═══════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════
+function changeDay(delta) {
+  viewDate = addDays(viewDate, delta);
+  refreshHeader();
+  render();
+}
+
+function goToday() {
+  viewDate = new Date();
+  refreshHeader();
+  render();
+}
+
+function refreshHeader() {
+  document.getElementById('date-display').textContent = formatDate(viewDate);
+  const isToday = isSameDay(viewDate, today());
+  document.getElementById('today-btn').style.display = isToday ? 'none' : 'inline-block';
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-exec').classList.toggle('active', tab === 'exec');
+  document.getElementById('tab-plan').classList.toggle('active', tab === 'plan');
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('view-exec').style.display = tab === 'exec' ? 'block' : 'none';
+  document.getElementById('view-plan').style.display = tab === 'plan' ? 'block' : 'none';
+  document.getElementById('view-history').style.display = tab === 'history' ? 'block' : 'none';
+  render();
+}
+
+// ═══════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════
+function render() {
+  if (activeTab === 'exec') renderExec();
+  else if (activeTab === 'plan') renderPlan();
+  else renderHistory();
+}
+
+function renderExec() {
+  const data = load();
+  const key = dateKey(viewDate);
+  const day = data[key];
+  const el = document.getElementById('view-exec');
+
+  if (!day || (!day.tasks?.length && !day.people?.length)) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">계획이 없어요</div>
+        <div class="empty-desc">전날 저녁에 "내일 계획" 탭에서<br>할일과 만날 사람을 미리 기록해보세요</div>
+      </div>`;
+    return;
+  }
+
+  const tasks = day.tasks || [];
+  const people = day.people || [];
+  const doneCnt = tasks.filter(t => t.done).length;
+  const metCnt = people.filter(p => p.met).length;
+  const total = tasks.length;
+  const pct = total > 0 ? Math.round(doneCnt / total * 100) : 0;
+  const allDone = total > 0 && doneCnt === total && (people.length === 0 || metCnt === people.length);
+
+  let html = '';
+
+  if (allDone) {
+    html += `
+      <div class="all-done-banner">
+        <span class="banner-emoji">🎉</span>
+        오늘 계획을 모두 완료했어요!
+      </div>`;
+  } else {
+    html += `
+      <div class="stats-card">
+        <div class="stats-label">오늘의 달성률</div>
+        <div class="stats-row">
+          <div class="stat-item">
+            <span class="stat-num">${doneCnt}<span style="font-size:16px;font-weight:500;opacity:.6">/${total}</span></span>
+            <span class="stat-desc">할일 완료</span>
+          </div>
+          ${people.length > 0 ? `
+          <div class="stat-item">
+            <span class="stat-num">${metCnt}<span style="font-size:16px;font-weight:500;opacity:.6">/${people.length}</span></span>
+            <span class="stat-desc">만남 완료</span>
+          </div>` : ''}
+          <div class="stat-item">
+            <span class="stat-num">${pct}<span style="font-size:16px;font-weight:500;opacity:.6">%</span></span>
+            <span class="stat-desc">달성률</span>
+          </div>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }
+
+  // Tasks
+  html += `
+    <div class="section">
+      <div class="section-head">
+        <span class="section-title">할일</span>
+        <span class="section-badge">${doneCnt}/${total} 완료</span>
+      </div>`;
+
+  tasks.forEach(t => {
+    html += `
+      <div class="task-item ${t.done ? 'done' : ''} ${t.carriedFrom ? 'carried' : ''}">
+        <div class="task-check ${t.done ? 'done' : ''}" onclick="toggleTask('${key}','${t.id}')"></div>
+        <div class="task-body">
+          <div class="task-text">${esc(t.text)}</div>
+          ${t.carriedFrom ? `<div class="carried-tag">전날 이월</div>` : ''}
+        </div>
+      </div>`;
+  });
+
+  html += `</div>`;
+
+  // People
+  if (people.length > 0) {
+    html += `
+      <div class="section">
+        <div class="section-head">
+          <span class="section-title">오늘 만날 사람</span>
+          <span class="section-badge">${metCnt}/${people.length}</span>
+        </div>`;
+
+    people.forEach(p => {
+      html += `
+        <div class="person-item ${p.met ? 'met' : ''}">
+          <div class="person-avatar">${esc(p.name.charAt(0))}</div>
+          <span class="person-name">${esc(p.name)}</span>
+          <div class="person-check ${p.met ? 'met' : ''}" onclick="togglePerson('${key}','${p.id}')"></div>
+        </div>`;
+    });
+
+    html += `</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function renderPlan() {
+  const data = load();
+  const tomorrow = addDays(viewDate, 1);
+  const tKey = dateKey(tomorrow);
+  const todayKey = dateKey(viewDate);
+  const existing = data[tKey];
+  const todayData = data[todayKey];
+  const el = document.getElementById('view-plan');
+
+  // Initialize edit state
+  if (existing) {
+    editTasks = existing.tasks.map(t => ({ ...t }));
+    editPeople = existing.people.map(p => ({ ...p }));
+  } else {
+    // Auto carry-over uncompleted tasks from viewDate
+    const carries = (todayData?.tasks || []).filter(t => !t.done);
+    editTasks = carries.slice(0, 6).map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: todayKey }));
+    editPeople = [{ id: uid(), name: '' }, { id: uid(), name: '' }];
+  }
+
+  // Pad to 6 tasks, 2 people
+  while (editTasks.length < 6) editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null });
+  while (editPeople.length < 2) editPeople.push({ id: uid(), name: '' });
+
+  const hasCarries = editTasks.some(t => t.carriedFrom);
+  const tomorrowStr = formatDate(tomorrow);
+
+  let html = `
+    <div class="plan-notice">
+      📅 <strong>${tomorrowStr}</strong> 계획을 세워요
+      ${hasCarries && !existing ? '<br>↩ 오늘 미완료 항목이 자동으로 이월됐어요' : ''}
+    </div>
+
+    <div class="plan-section">
+      <div class="plan-label">할일 (최대 6가지)</div>`;
+
+  editTasks.forEach((t, i) => {
+    const isCarried = !!t.carriedFrom;
+    html += `
+      <div>
+        <div class="plan-row">
+          <div class="plan-num">${i + 1}</div>
+          <input
+            class="plan-input${isCarried ? ' carried' : ''}"
+            type="text"
+            placeholder="${i < 3 ? '중요한 할일을 입력하세요' : '할일 입력 (선택)'}"
+            value="${esc(t.text)}"
+            data-ti="${i}"
+            oninput="onTaskInput(${i}, this.value)"
+            onkeydown="taskKeyNav(event, ${i})"
+          >
+        </div>
+        ${isCarried ? `<div class="carried-hint">↑ 오늘 미완료에서 이월됨</div>` : ''}
+      </div>`;
+  });
+
+  html += `
+    </div>
+
+    <div class="plan-section">
+      <div class="plan-label">만날 사람 (최대 2명)</div>`;
+
+  editPeople.forEach((p, i) => {
+    html += `
+      <div class="plan-row">
+        <div class="plan-num green-num">${i === 0 ? '👤' : '👥'}</div>
+        <input
+          class="plan-input"
+          type="text"
+          placeholder="이름 입력"
+          value="${esc(p.name)}"
+          data-pi="${i}"
+          oninput="onPersonInput(${i}, this.value)"
+        >
+      </div>`;
+  });
+
+  html += `
+    </div>
+
+    <button class="save-btn" onclick="savePlan()">
+      ${existing ? '계획 수정 저장' : '내일 계획 저장하기'} →
+    </button>`;
+
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════
+// PLAN ACTIONS
+// ═══════════════════════════════════════
+function onTaskInput(i, val) { editTasks[i].text = val.trim(); }
+function onPersonInput(i, val) { editPeople[i].name = val.trim(); }
+
+function taskKeyNav(e, i) {
+  if (e.key === 'Enter') {
+    const next = document.querySelector(`.plan-input[data-ti="${i + 1}"]`);
+    if (next) { next.focus(); next.select(); }
+    else {
+      const firstPerson = document.querySelector('.plan-input[data-pi="0"]');
+      if (firstPerson) firstPerson.focus();
+    }
+  }
+}
+
+function savePlan() {
+  // Sync from DOM (user may have typed without triggering oninput in some edge cases)
+  document.querySelectorAll('.plan-input[data-ti]').forEach(el => {
+    editTasks[+el.dataset.ti].text = el.value.trim();
+  });
+  document.querySelectorAll('.plan-input[data-pi]').forEach(el => {
+    editPeople[+el.dataset.pi].name = el.value.trim();
+  });
+
+  const tasks = editTasks.filter(t => t.text);
+  const people = editPeople.filter(p => p.name);
+
+  if (!tasks.length) {
+    showToast('최소 1개의 할일을 입력해주세요');
+    const first = document.querySelector('.plan-input[data-ti="0"]');
+    if (first) first.focus();
+    return;
+  }
+
+  const data = load();
+  const tKey = dateKey(addDays(viewDate, 1));
+  data[tKey] = { tasks, people, savedAt: new Date().toISOString() };
+  save(data);
+  pushDay(tKey);
+
+  showToast('계획이 저장됐어요 ✓');
+  setTimeout(() => renderPlan(), 350);
+}
+
+// ═══════════════════════════════════════
+// EXEC ACTIONS
+// ═══════════════════════════════════════
+function toggleTask(dateKey, taskId) {
+  const data = load();
+  const day = data[dateKey];
+  if (!day) return;
+  const task = day.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.done = !task.done;
+  save(data);
+  renderExec();
+  if (task.done) showToast('완료! 👍');
+  pushDay(dateKey);
+}
+
+function togglePerson(dateKey, personId) {
+  const data = load();
+  const day = data[dateKey];
+  if (!day) return;
+  const person = day.people.find(p => p.id === personId);
+  if (!person) return;
+  person.met = !person.met;
+  save(data);
+  renderExec();
+  pushDay(dateKey);
+}
+
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+// ═══════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════
+function renderHistory() {
+  const data = load();
+  const el = document.getElementById('view-history');
+  const keys = Object.keys(data).sort().reverse(); // newest first
+
+  if (!keys.length) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">📂</div>
+        <div class="empty-title">기록이 없어요</div>
+        <div class="empty-desc">"내일 계획"을 저장하면 여기에 기록이 쌓여요</div>
+      </div>`;
+    return;
+  }
+
+  const todayKey = dateKey(today());
+
+  // Aggregate summary stats (past days only)
+  let totalDays = 0, perfectDays = 0, totalTasks = 0, doneTasks = 0, carriedTotal = 0;
+  keys.forEach(k => {
+    if (k > todayKey) return; // skip future
+    const day = data[k];
+    const tasks = day.tasks || [];
+    if (!tasks.length) return;
+    totalDays++;
+    const done = tasks.filter(t => t.done).length;
+    doneTasks += done;
+    totalTasks += tasks.length;
+    if (done === tasks.length) perfectDays++;
+    carriedTotal += tasks.filter(t => t.carriedFrom).length;
+  });
+  const avgPct = totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0;
+
+  let html = `
+    <div class="history-summary">
+      <div class="hs-card">
+        <div class="hs-num">${totalDays}</div>
+        <div class="hs-label">기록된 날</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-num" style="color:var(--green)">${perfectDays}</div>
+        <div class="hs-label">완벽한 날</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-num" style="color:var(--accent)">${avgPct}%</div>
+        <div class="hs-label">평균 달성률</div>
+      </div>
+    </div>`;
+
+  // Group by month
+  const months = {};
+  keys.forEach(k => {
+    const m = k.slice(0, 7); // "2026-06"
+    if (!months[m]) months[m] = [];
+    months[m].push(k);
+  });
+
+  Object.entries(months).forEach(([month, dayKeys]) => {
+    const [y, m] = month.split('-');
+    html += `<div class="history-month">${y}년 ${parseInt(m)}월</div>`;
+
+    dayKeys.forEach(k => {
+      const day = data[k];
+      const tasks = day.tasks || [];
+      const people = day.people || [];
+      const done = tasks.filter(t => t.done).length;
+      const total = tasks.length;
+      const met = people.filter(p => p.met).length;
+      const carried = tasks.filter(t => t.carriedFrom).length;
+      const pct = total > 0 ? Math.round(done / total * 100) : 0;
+      const isFuture = k > todayKey;
+      const isToday = k === todayKey;
+
+      let status, badgeText;
+      if (isFuture) {
+        status = 'future'; badgeText = '예정';
+      } else if (total === 0) {
+        status = 'none'; badgeText = '기록 없음';
+      } else if (done === total) {
+        status = 'perfect'; badgeText = '완료 🎉';
+      } else if (done > 0) {
+        status = 'partial'; badgeText = `${pct}%`;
+      } else {
+        status = 'none'; badgeText = '0%';
+      }
+
+      const d = new Date(k + 'T00:00:00');
+      const dateStr = `${parseInt(k.slice(5,7))}월 ${parseInt(k.slice(8,10))}일 ${DAYS[d.getDay()]}요일${isToday ? ' (오늘)' : ''}`;
+
+      html += `
+        <div class="hist-card" onclick="goToDate('${k}')">
+          <div class="hist-top">
+            <span class="hist-date">${dateStr}</span>
+            <span class="hist-badge ${status}">${badgeText}</span>
+          </div>
+          <div class="hist-bar-track">
+            <div class="hist-bar-fill ${status}" style="width:${isFuture ? 100 : pct}%"></div>
+          </div>
+          <div class="hist-meta">
+            <span class="hist-meta-item">✓ ${done}/${total} 할일</span>
+            ${people.length > 0 ? `<span class="hist-meta-item">👤 ${met}/${people.length} 만남</span>` : ''}
+            ${carried > 0 ? `<span class="hist-carried">↩ 이월 ${carried}건</span>` : ''}
+          </div>
+        </div>`;
+    });
+  });
+
+  el.innerHTML = html;
+}
+
+function goToDate(key) {
+  viewDate = new Date(key + 'T00:00:00');
+  refreshHeader();
+  switchTab('exec');
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+refreshHeader();
+render();
+initCloud();
+</script>
+</body>
+</html>
