@@ -836,41 +836,10 @@
   </div>
 
   <div class="panel-section">
-    <div class="panel-section-title">Supabase 연결</div>
-    <div id="conn-status" class="conn-badge disconnected" style="margin-bottom:12px">
+    <div id="conn-status" class="conn-badge disconnected" style="margin-bottom:16px">
       <span>●</span> 연결 안 됨
     </div>
-    <div class="field-label">Project URL</div>
-    <input class="panel-input mono" id="input-sb-url" placeholder="https://xxxx.supabase.co">
-    <div class="field-label">Anon Key</div>
-    <input class="panel-input mono" id="input-sb-key" placeholder="eyJhbGci...">
     <button class="panel-btn primary" onclick="saveSettings()">저장 &amp; 동기화 시작</button>
-  </div>
-
-  <div class="panel-section" style="margin-top:20px">
-    <div class="panel-section-title">처음 설정하는 방법</div>
-    <div class="setup-guide">
-      <ol>
-        <li><a href="https://supabase.com" target="_blank">supabase.com</a> 가입 → 새 프로젝트 생성 (무료)</li>
-        <li>좌측 메뉴 <strong>SQL Editor</strong> 클릭 후 아래 SQL 실행:</li>
-      </ol>
-      <div style="margin:8px 0;background:#1e1e2e;color:#cdd6f4;padding:10px 12px;border-radius:8px;font-family:monospace;font-size:11.5px;line-height:1.6;overflow-x:auto">
-create table haru_plans (<br>
-&nbsp;&nbsp;sync_code text not null,<br>
-&nbsp;&nbsp;date_key text not null,<br>
-&nbsp;&nbsp;tasks jsonb default '[]',<br>
-&nbsp;&nbsp;people jsonb default '[]',<br>
-&nbsp;&nbsp;updated_at timestamptz default now(),<br>
-&nbsp;&nbsp;primary key (sync_code, date_key)<br>
-);<br>
-alter table haru_plans disable row level security;
-      </div>
-      <ol start="3">
-        <li>좌측 <strong>Project Settings → API</strong>에서<br>
-            <code>Project URL</code>과 <code>anon key</code> 복사</li>
-        <li>위 칸에 붙여넣고 저장</li>
-      </ol>
-    </div>
   </div>
 </div>
 
@@ -879,9 +848,12 @@ alter table haru_plans disable row level security;
 // STORAGE
 // ═══════════════════════════════════════
 const KEY = 'haru-v1';
-const SB_URL_KEY = 'haru-sb-url';
-const SB_KEY_KEY = 'haru-sb-key';
+const SB_URL_KEY  = 'haru-sb-url';
+const SB_KEY_KEY  = 'haru-sb-key';
 const SYNC_CODE_KEY = 'haru-sync-code';
+
+const DEFAULT_SB_URL = 'https://gnryzmjcpsttqmyaiaos.supabase.co';
+const DEFAULT_SB_KEY = 'sb_publishable_hROm7-WeRcfkNtV040t2pA_wMEy3heV';
 
 function load() {
   try { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
@@ -908,9 +880,8 @@ function setSyncDot(state) { // 'idle'|'syncing'|'ok'|'err'
 }
 
 function initCloud() {
-  const url = localStorage.getItem(SB_URL_KEY) || '';
-  const key = localStorage.getItem(SB_KEY_KEY) || '';
-  if (!url || !key) { sbClient = null; return; }
+  const url = localStorage.getItem(SB_URL_KEY) || DEFAULT_SB_URL;
+  const key = localStorage.getItem(SB_KEY_KEY) || DEFAULT_SB_KEY;
   try {
     sbClient = supabase.createClient(url, key);
     if (getSyncCode()) pullFromCloud();
@@ -969,10 +940,7 @@ async function pushDay(dateKey) {
 function openSettings() {
   document.getElementById('settings-panel').classList.add('open');
   document.getElementById('backdrop').classList.add('open');
-  // populate fields
   document.getElementById('input-sync-code').value = getSyncCode();
-  document.getElementById('input-sb-url').value = localStorage.getItem(SB_URL_KEY) || '';
-  document.getElementById('input-sb-key').value = localStorage.getItem(SB_KEY_KEY) || '';
   updateConnBadge();
 }
 
@@ -995,16 +963,9 @@ function updateConnBadge() {
 
 async function saveSettings() {
   const code = document.getElementById('input-sync-code').value.trim().toUpperCase();
-  const url  = document.getElementById('input-sb-url').value.trim();
-  const key  = document.getElementById('input-sb-key').value.trim();
-
   if (!code) { showToast('동기화 코드를 입력해주세요'); return; }
-  if (!url || !key) { showToast('Supabase URL과 Key를 입력해주세요'); return; }
 
   localStorage.setItem(SYNC_CODE_KEY, code);
-  localStorage.setItem(SB_URL_KEY, url);
-  localStorage.setItem(SB_KEY_KEY, key);
-
   initCloud();
   updateConnBadge();
   closeSettings();
