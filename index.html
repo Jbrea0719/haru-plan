@@ -344,7 +344,7 @@
       -webkit-appearance: none; appearance: none;
     }
     .tp-h { width: 30px; }
-    .tp-m { width: 28px; }
+    .tp-m { width: 32px; }
     .tp-sep { font-size: 13px; font-weight: 700; color: var(--text-muted); margin: 0 1px; }
     .meal-select {
       border: 1.5px solid var(--border); border-radius: 7px;
@@ -920,7 +920,7 @@
   <div class="header-row">
     <div style="display:flex;align-items:center;gap:8px">
       <span class="app-name">하루 계획</span>
-      <div class="sync-dot" id="sync-dot" title="동기화 상태"></div>
+      <div class="sync-dot" id="sync-dot" title="클릭해서 최신 데이터 가져오기" onclick="if(cloudReady())pullFromCloud()" style="cursor:pointer"></div>
     </div>
     <div class="date-nav">
       <button class="nav-btn" onclick="changeDay(-1)" title="이전 날">‹</button>
@@ -1033,7 +1033,10 @@ function initCloud() {
   const key = localStorage.getItem(SB_KEY_KEY) || DEFAULT_SB_KEY;
   try {
     sbClient = supabase.createClient(url, key);
-    if (getSyncCode()) pullFromCloud();
+    if (getSyncCode()) {
+      pullFromCloud();
+      setInterval(() => { if (cloudReady()) pullFromCloud(); }, 30000);
+    }
   } catch(e) { sbClient = null; }
 }
 
@@ -1479,7 +1482,7 @@ function renderExec() {
             <span class="person-name">${esc(p.name)}</span>
             ${p.agenda ? `<span class="person-agenda">${esc(p.agenda)}</span>` : ''}
             ${(hasTime || mealLabel) ? `<div class="person-meta">
-              ${hasTime ? `<span class="time-badge">🕐 ${p.timeFrom||'?'} ~ ${p.timeTo||'?'}</span>` : ''}
+              ${hasTime ? `<span class="time-badge">🕐 ${fmtTime(p.timeFrom)} ~ ${fmtTime(p.timeTo)}</span>` : ''}
               ${mealLabel ? `<span class="meal-badge ${p.meal}">${mealLabel}</span>` : ''}
             </div>` : ''}
           </div>
@@ -1528,17 +1531,19 @@ function initPlanState() {
   while (editPeople.length < 2) editPeople.push(newPerson());
 }
 
+function fmtTime(t) { return t ? (t.includes(':') ? t : t + ':00') : '?'; }
+
 function timePickerHTML(timeStr, hAttr, mAttr) {
   const parts = timeStr ? timeStr.split(':') : ['', ''];
   const h = parts[0] || '';
   const mInt = parseInt(parts[1]) || 0;
-  const m = String([0,15,30,45].reduce((p,c) => Math.abs(c-mInt)<Math.abs(p-mInt)?c:p)).padStart(2,'0');
+  const m = String([0,10,20,30,40,50].reduce((p,c) => Math.abs(c-mInt)<Math.abs(p-mInt)?c:p)).padStart(2,'0');
   let hopts = `<option value="">--</option>`;
   for (let i = 0; i < 24; i++) {
     const v = String(i).padStart(2,'0');
     hopts += `<option value="${v}"${h===v?' selected':''}>${v}</option>`;
   }
-  const mopts = ['00','15','30','45'].map(v =>
+  const mopts = ['00','10','20','30','40','50'].map(v =>
     `<option value="${v}"${m===v?' selected':''}>${v}</option>`
   ).join('');
   return `<div class="time-picker"><select class="tp-h" ${hAttr}>${hopts}</select><span class="tp-sep">:</span><select class="tp-m" ${mAttr}>${mopts}</select></div>`;
