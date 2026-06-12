@@ -328,12 +328,23 @@
       flex-wrap: wrap;
     }
     .time-sep { font-size: 13px; color: var(--text-muted); }
-    .time-input {
-      width: 90px; border: 1.5px solid var(--border); border-radius: 7px;
-      padding: 6px 8px; font-size: 13px; font-family: inherit;
-      background: var(--surface); color: var(--text-primary); outline: none;
+    .time-picker {
+      display: inline-flex; align-items: center; gap: 1px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 7px; padding: 5px 8px; transition: border-color .15s;
     }
-    .time-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .time-picker:focus-within {
+      border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .time-picker select {
+      border: none; background: none; outline: none;
+      font-family: inherit; font-size: 14px; color: var(--text-primary);
+      cursor: pointer; padding: 0; text-align: center;
+      -webkit-appearance: none; appearance: none;
+    }
+    .tp-h { width: 30px; }
+    .tp-m { width: 28px; }
+    .tp-sep { font-size: 13px; font-weight: 700; color: var(--text-muted); margin: 0 1px; }
     .meal-select {
       border: 1.5px solid var(--border); border-radius: 7px;
       padding: 6px 10px; font-size: 13px; font-family: inherit;
@@ -1197,8 +1208,12 @@ function saveEdit() {
         const person = day.people.find(p => p.id === id);
         if (person) {
           person.name     = newVal;
-          person.timeFrom = document.getElementById(`edit-from-${id}`)?.value || '';
-          person.timeTo   = document.getElementById(`edit-to-${id}`)?.value   || '';
+          const hf = document.getElementById(`edit-hf-${id}`)?.value || '';
+          const mf = document.getElementById(`edit-mf-${id}`)?.value || '00';
+          const ht = document.getElementById(`edit-ht-${id}`)?.value || '';
+          const mt = document.getElementById(`edit-mt-${id}`)?.value || '00';
+          person.timeFrom = hf ? `${hf}:${mf}` : '';
+          person.timeTo   = ht ? `${ht}:${mt}` : '';
           person.meal     = document.getElementById(`edit-meal-${id}`)?.value  || '';
         }
       }
@@ -1432,9 +1447,10 @@ function renderExec() {
                    placeholder="이름"
                    onkeydown="if(event.key==='Escape')cancelEdit()">
             <div class="person-edit-detail">
-              <input type="time" class="time-input" id="edit-from-${p.id}" value="${p.timeFrom||''}">
+              ${timePickerHTML(p.timeFrom, `id="edit-hf-${p.id}"`, `id="edit-mf-${p.id}"`)}
               <span class="time-sep">~</span>
-              <input type="time" class="time-input" id="edit-to-${p.id}" value="${p.timeTo||''}">
+              ${timePickerHTML(p.timeTo, `id="edit-ht-${p.id}"`, `id="edit-mt-${p.id}"`)}
+
               <select class="meal-select" id="edit-meal-${p.id}">
                 <option value=""      ${!p.meal            ? 'selected' : ''}>식사 없음</option>
                 <option value="lunch" ${p.meal === 'lunch'  ? 'selected' : ''}>🍱 점심</option>
@@ -1505,6 +1521,22 @@ function initPlanState() {
   while (editPeople.length < 2) editPeople.push(newPerson());
 }
 
+function timePickerHTML(timeStr, hAttr, mAttr) {
+  const parts = timeStr ? timeStr.split(':') : ['', ''];
+  const h = parts[0] || '';
+  const mInt = parseInt(parts[1]) || 0;
+  const m = String([0,15,30,45].reduce((p,c) => Math.abs(c-mInt)<Math.abs(p-mInt)?c:p)).padStart(2,'0');
+  let hopts = `<option value="">--</option>`;
+  for (let i = 0; i < 24; i++) {
+    const v = String(i).padStart(2,'0');
+    hopts += `<option value="${v}"${h===v?' selected':''}>${v}</option>`;
+  }
+  const mopts = ['00','15','30','45'].map(v =>
+    `<option value="${v}"${m===v?' selected':''}>${v}</option>`
+  ).join('');
+  return `<div class="time-picker"><select class="tp-h" ${hAttr}>${hopts}</select><span class="tp-sep">:</span><select class="tp-m" ${mAttr}>${mopts}</select></div>`;
+}
+
 function newPerson(base) {
   return { id: uid(), name: '', timeFrom: '', timeTo: '', meal: '', ...(base || {}) };
 }
@@ -1516,11 +1548,15 @@ function syncPlanDOM() {
   document.querySelectorAll('.plan-input[data-pi]').forEach(el => {
     if (editPeople[+el.dataset.pi] !== undefined) editPeople[+el.dataset.pi].name = el.value.trim();
   });
-  document.querySelectorAll('[data-pi-from]').forEach(el => {
-    const p = editPeople[+el.dataset.piFrom]; if (p) p.timeFrom = el.value;
+  document.querySelectorAll('[data-pi-hf]').forEach(el => {
+    const p = editPeople[+el.dataset.piHf]; if (!p) return;
+    const h = el.value, m = document.querySelector(`[data-pi-mf="${el.dataset.piHf}"]`)?.value || '00';
+    p.timeFrom = h ? `${h}:${m}` : '';
   });
-  document.querySelectorAll('[data-pi-to]').forEach(el => {
-    const p = editPeople[+el.dataset.piTo]; if (p) p.timeTo = el.value;
+  document.querySelectorAll('[data-pi-ht]').forEach(el => {
+    const p = editPeople[+el.dataset.piHt]; if (!p) return;
+    const h = el.value, m = document.querySelector(`[data-pi-mt="${el.dataset.piHt}"]`)?.value || '00';
+    p.timeTo = h ? `${h}:${m}` : '';
   });
   document.querySelectorAll('[data-pi-meal]').forEach(el => {
     const p = editPeople[+el.dataset.piMeal]; if (p) p.meal = el.value;
@@ -1603,9 +1639,9 @@ function renderPlanHTML() {
           ${canRemove ? `<button class="remove-row-btn" onclick="removePerson(${i})" title="삭제">×</button>` : ''}
         </div>
         <div class="person-detail-row">
-          <input type="time" class="time-input" value="${p.timeFrom||''}" data-pi-from="${i}" placeholder="--:--">
+          ${timePickerHTML(p.timeFrom, `data-pi-hf="${i}"`, `data-pi-mf="${i}"`)}
           <span class="time-sep">~</span>
-          <input type="time" class="time-input" value="${p.timeTo||''}" data-pi-to="${i}" placeholder="--:--">
+          ${timePickerHTML(p.timeTo, `data-pi-ht="${i}"`, `data-pi-mt="${i}"`)}
           <select class="meal-select" data-pi-meal="${i}">
             <option value=""      ${!p.meal            ? 'selected' : ''}>식사 없음</option>
             <option value="lunch" ${p.meal === 'lunch'  ? 'selected' : ''}>🍱 점심</option>
