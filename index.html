@@ -565,6 +565,101 @@
     .conn-badge.connected { background: var(--green-soft); color: var(--green); }
     .conn-badge.disconnected { background: var(--bg); color: var(--text-muted); }
 
+    /* ─── CALENDAR POPUP ─── */
+    .cal-btn {
+      background: none; border: none;
+      width: 26px; height: 26px;
+      border-radius: 6px; cursor: pointer;
+      font-size: 13px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary);
+      transition: background .1s;
+      flex-shrink: 0;
+    }
+    .cal-btn:active { background: var(--bg); }
+
+    .cal-popup {
+      position: fixed;
+      top: 108px;
+      left: 50%; transform: translateX(-50%);
+      width: calc(100% - 24px); max-width: 340px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0,0,0,.14);
+      z-index: 35;
+      display: none;
+      overflow: hidden;
+    }
+    .cal-popup.open { display: block; }
+
+    .cal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px 8px;
+    }
+    .cal-month-label { font-size: 15px; font-weight: 700; }
+    .cal-nav-row { display: flex; gap: 2px; }
+    .cal-nav {
+      background: none; border: none; width: 28px; height: 28px;
+      border-radius: 7px; cursor: pointer; font-size: 12px;
+      color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cal-nav:hover { background: var(--bg); }
+
+    .cal-dow {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      padding: 0 10px 4px;
+    }
+    .cal-dow-cell {
+      text-align: center; font-size: 11px; font-weight: 600;
+      color: var(--text-muted); padding: 2px 0;
+    }
+    .cal-dow-cell:first-child { color: #EF4444; }
+    .cal-dow-cell:last-child  { color: var(--accent); }
+
+    .cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      padding: 0 10px 12px; gap: 1px;
+    }
+    .cal-cell {
+      aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 500;
+      border-radius: 50%; cursor: pointer;
+      transition: background .1s; position: relative;
+    }
+    .cal-cell:hover { background: var(--bg); }
+    .cal-cell.other  { color: var(--text-muted); }
+    .cal-cell.today  { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+    .cal-cell.sel    { background: var(--accent); color: #fff !important; font-weight: 700; }
+    .cal-cell.has-plan::after {
+      content: ''; position: absolute; bottom: 2px;
+      width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+    }
+    .cal-cell.sel.has-plan::after { background: rgba(255,255,255,.7); }
+
+    /* ─── PLAN ADD/REMOVE ─── */
+    .add-row-btn {
+      width: 100%; padding: 10px;
+      border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+      background: none; color: var(--text-muted);
+      font-size: 14px; font-weight: 500; font-family: inherit;
+      cursor: pointer; margin-top: 4px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      transition: all .15s;
+    }
+    .add-row-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+    .remove-row-btn {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-radius: 6px; font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .remove-row-btn:hover { background: #FEE2E2; color: var(--red); }
+
     /* ─── TOAST ─── */
     .toast {
       position: fixed;
@@ -681,6 +776,7 @@
     <div class="date-nav">
       <button class="nav-btn" onclick="changeDay(-1)" title="이전 날">‹</button>
       <span class="date-chip" id="date-display"></span>
+      <button class="cal-btn" onclick="toggleCalendar(event)" title="달력">📅</button>
       <button class="nav-btn" onclick="changeDay(1)" title="다음 날">›</button>
       <button class="today-jump" id="today-btn" onclick="goToday()" style="display:none">오늘</button>
       <button class="settings-btn" onclick="openSettings()" title="설정">⚙</button>
@@ -700,6 +796,24 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- CALENDAR -->
+<div class="cal-popup" id="cal-popup">
+  <div class="cal-header">
+    <span class="cal-month-label" id="cal-month-label"></span>
+    <div class="cal-nav-row">
+      <button class="cal-nav" onclick="calNav(-1)">▲</button>
+      <button class="cal-nav" onclick="calNav(1)">▼</button>
+    </div>
+  </div>
+  <div class="cal-dow">
+    <div class="cal-dow-cell">일</div><div class="cal-dow-cell">월</div>
+    <div class="cal-dow-cell">화</div><div class="cal-dow-cell">수</div>
+    <div class="cal-dow-cell">목</div><div class="cal-dow-cell">금</div>
+    <div class="cal-dow-cell">토</div>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
 
 <!-- SETTINGS -->
 <div class="overlay-backdrop" id="backdrop" onclick="closeSettings()"></div>
@@ -1086,44 +1200,54 @@ function renderExec() {
   el.innerHTML = html;
 }
 
-function renderPlan() {
+function initPlanState() {
   const data = load();
-  const tomorrow = addDays(viewDate, 1);
-  const tKey = dateKey(tomorrow);
+  const tKey = dateKey(addDays(viewDate, 1));
   const todayKey = dateKey(viewDate);
   const existing = data[tKey];
   const todayData = data[todayKey];
-  const el = document.getElementById('view-plan');
 
-  // Initialize edit state
   if (existing) {
     editTasks = existing.tasks.map(t => ({ ...t }));
     editPeople = existing.people.map(p => ({ ...p }));
   } else {
-    // Auto carry-over uncompleted tasks from viewDate
     const carries = (todayData?.tasks || []).filter(t => !t.done);
     editTasks = carries.slice(0, 6).map(t => ({ id: uid(), text: t.text, done: false, carriedFrom: todayKey }));
     editPeople = [{ id: uid(), name: '' }, { id: uid(), name: '' }];
   }
-
-  // Pad to 6 tasks, 2 people
-  while (editTasks.length < 6) editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null });
+  while (editTasks.length < 6)  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null });
   while (editPeople.length < 2) editPeople.push({ id: uid(), name: '' });
+}
 
+function syncPlanDOM() {
+  document.querySelectorAll('.plan-input[data-ti]').forEach(el => {
+    if (editTasks[+el.dataset.ti] !== undefined) editTasks[+el.dataset.ti].text = el.value.trim();
+  });
+  document.querySelectorAll('.plan-input[data-pi]').forEach(el => {
+    if (editPeople[+el.dataset.pi] !== undefined) editPeople[+el.dataset.pi].name = el.value.trim();
+  });
+}
+
+function renderPlanHTML() {
+  const data = load();
+  const tomorrow = addDays(viewDate, 1);
+  const tKey = dateKey(tomorrow);
+  const existing = data[tKey];
   const hasCarries = editTasks.some(t => t.carriedFrom);
-  const tomorrowStr = formatDate(tomorrow);
+  const MIN_TASKS = 6, MIN_PEOPLE = 2;
 
   let html = `
     <div class="plan-notice">
-      📅 <strong>${tomorrowStr}</strong> 계획을 세워요
+      📅 <strong>${formatDate(tomorrow)}</strong> 계획을 세워요
       ${hasCarries && !existing ? '<br>↩ 오늘 미완료 항목이 자동으로 이월됐어요' : ''}
     </div>
 
     <div class="plan-section">
-      <div class="plan-label">할일 (최대 6가지)</div>`;
+      <div class="plan-label">할일</div>`;
 
   editTasks.forEach((t, i) => {
     const isCarried = !!t.carriedFrom;
+    const canRemove = editTasks.length > MIN_TASKS;
     html += `
       <div>
         <div class="plan-row">
@@ -1131,24 +1255,27 @@ function renderPlan() {
           <input
             class="plan-input${isCarried ? ' carried' : ''}"
             type="text"
-            placeholder="${i < 3 ? '중요한 할일을 입력하세요' : '할일 입력 (선택)'}"
+            placeholder="${i < 3 ? '중요한 할일을 입력하세요' : '할일 입력'}"
             value="${esc(t.text)}"
             data-ti="${i}"
             oninput="onTaskInput(${i}, this.value)"
             onkeydown="taskKeyNav(event, ${i})"
           >
+          ${canRemove ? `<button class="remove-row-btn" onclick="removeTask(${i})" title="삭제">×</button>` : ''}
         </div>
         ${isCarried ? `<div class="carried-hint">↑ 오늘 미완료에서 이월됨</div>` : ''}
       </div>`;
   });
 
   html += `
+      <button class="add-row-btn" onclick="addTask()">＋ 할일 추가</button>
     </div>
 
     <div class="plan-section">
-      <div class="plan-label">만날 사람 (최대 2명)</div>`;
+      <div class="plan-label">만날 사람</div>`;
 
   editPeople.forEach((p, i) => {
+    const canRemove = editPeople.length > MIN_PEOPLE;
     html += `
       <div class="plan-row">
         <div class="plan-num green-num">${i === 0 ? '👤' : '👥'}</div>
@@ -1160,17 +1287,24 @@ function renderPlan() {
           data-pi="${i}"
           oninput="onPersonInput(${i}, this.value)"
         >
+        ${canRemove ? `<button class="remove-row-btn" onclick="removePerson(${i})" title="삭제">×</button>` : ''}
       </div>`;
   });
 
   html += `
+      <button class="add-row-btn" onclick="addPerson()">＋ 사람 추가</button>
     </div>
 
     <button class="save-btn" onclick="savePlan()">
       ${existing ? '계획 수정 저장' : '내일 계획 저장하기'} →
     </button>`;
 
-  el.innerHTML = html;
+  document.getElementById('view-plan').innerHTML = html;
+}
+
+function renderPlan() {
+  initPlanState();
+  renderPlanHTML();
 }
 
 // ═══════════════════════════════════════
@@ -1191,13 +1325,7 @@ function taskKeyNav(e, i) {
 }
 
 function savePlan() {
-  // Sync from DOM (user may have typed without triggering oninput in some edge cases)
-  document.querySelectorAll('.plan-input[data-ti]').forEach(el => {
-    editTasks[+el.dataset.ti].text = el.value.trim();
-  });
-  document.querySelectorAll('.plan-input[data-pi]').forEach(el => {
-    editPeople[+el.dataset.pi].name = el.value.trim();
-  });
+  syncPlanDOM();
 
   const tasks = editTasks.filter(t => t.text);
   const people = editPeople.filter(p => p.name);
@@ -1217,6 +1345,114 @@ function savePlan() {
 
   showToast('계획이 저장됐어요 ✓');
   setTimeout(() => renderPlan(), 350);
+}
+
+function addTask() {
+  syncPlanDOM();
+  editTasks.push({ id: uid(), text: '', done: false, carriedFrom: null });
+  renderPlanHTML();
+  setTimeout(() => {
+    const last = document.querySelector(`.plan-input[data-ti="${editTasks.length - 1}"]`);
+    if (last) last.focus();
+  }, 30);
+}
+
+function removeTask(i) {
+  syncPlanDOM();
+  editTasks.splice(i, 1);
+  renderPlanHTML();
+}
+
+function addPerson() {
+  syncPlanDOM();
+  editPeople.push({ id: uid(), name: '' });
+  renderPlanHTML();
+  setTimeout(() => {
+    const last = document.querySelector(`.plan-input[data-pi="${editPeople.length - 1}"]`);
+    if (last) last.focus();
+  }, 30);
+}
+
+function removePerson(i) {
+  syncPlanDOM();
+  editPeople.splice(i, 1);
+  renderPlanHTML();
+}
+
+// ═══════════════════════════════════════
+// CALENDAR
+// ═══════════════════════════════════════
+let calViewMonth = new Date();
+let calIsOpen = false;
+
+function toggleCalendar(e) {
+  e && e.stopPropagation();
+  calIsOpen ? closeCalendar() : openCalendar();
+}
+
+function openCalendar() {
+  calIsOpen = true;
+  calViewMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  renderCalendar();
+  document.getElementById('cal-popup').classList.add('open');
+  setTimeout(() => document.addEventListener('click', calOutsideClick), 10);
+}
+
+function closeCalendar() {
+  calIsOpen = false;
+  document.getElementById('cal-popup').classList.remove('open');
+  document.removeEventListener('click', calOutsideClick);
+}
+
+function calOutsideClick(e) {
+  const popup = document.getElementById('cal-popup');
+  const btn = document.querySelector('.cal-btn');
+  if (!popup.contains(e.target) && (!btn || !btn.contains(e.target))) closeCalendar();
+}
+
+function calNav(delta) {
+  calViewMonth = new Date(calViewMonth.getFullYear(), calViewMonth.getMonth() + delta, 1);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const data = load();
+  const y = calViewMonth.getFullYear();
+  const m = calViewMonth.getMonth();
+  document.getElementById('cal-month-label').textContent = `${y}년 ${m + 1}월`;
+
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  const todayStr = dateKey(today());
+  const selStr = dateKey(viewDate);
+
+  let cells = '';
+
+  for (let i = firstDow - 1; i >= 0; i--)
+    cells += `<div class="cal-cell other">${prevDays - i}</div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dk = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    let cls = 'cal-cell';
+    if (dk === selStr) cls += ' sel';
+    else if (dk === todayStr) cls += ' today';
+    if (data[dk]) cls += ' has-plan';
+    cells += `<div class="${cls}" onclick="calPick('${dk}')">${d}</div>`;
+  }
+
+  const total = Math.ceil((firstDow + daysInMonth) / 7) * 7;
+  for (let d = 1; d <= total - firstDow - daysInMonth; d++)
+    cells += `<div class="cal-cell other">${d}</div>`;
+
+  document.getElementById('cal-grid').innerHTML = cells;
+}
+
+function calPick(key) {
+  viewDate = new Date(key + 'T00:00:00');
+  refreshHeader();
+  render();
+  closeCalendar();
 }
 
 // ═══════════════════════════════════════
