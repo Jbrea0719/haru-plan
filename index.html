@@ -583,6 +583,16 @@
     .edit-btn:hover  { background: var(--bg); color: var(--text-secondary); }
     .edit-btn:active { background: var(--border); }
 
+    .del-btn {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-radius: 6px; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .del-btn:hover  { background: #fee2e2; color: #ef4444; }
+    .del-btn:active { background: #fecaca; }
+
     .inline-edit-wrap {
       flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0;
     }
@@ -1112,6 +1122,26 @@ function cancelEdit() {
   renderExec();
 }
 
+function deleteTask(dateKey, taskId) {
+  const data = load();
+  const day = data[dateKey];
+  if (!day) return;
+  day.tasks = day.tasks.filter(t => t.id !== taskId);
+  save(data);
+  pushDay(dateKey);
+  renderExec();
+}
+
+function deletePerson(dateKey, personId) {
+  const data = load();
+  const day = data[dateKey];
+  if (!day) return;
+  day.people = day.people.filter(p => p.id !== personId);
+  save(data);
+  pushDay(dateKey);
+  renderExec();
+}
+
 // ═══════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════
@@ -1240,6 +1270,7 @@ function renderExec() {
           ${t.carriedFrom ? `<div class="carried-tag">전날 이월</div>` : ''}
         </div>
         <button class="edit-btn" onclick="startEditTask('${key}','${t.id}')">✏</button>
+        <button class="del-btn" onclick="deleteTask('${key}','${t.id}')">🗑</button>
       </div>`;
     }
   });
@@ -1276,6 +1307,7 @@ function renderExec() {
           <div class="person-avatar">${esc(p.name.charAt(0))}</div>
           <span class="person-name">${esc(p.name)}</span>
           <button class="edit-btn" onclick="startEditPerson('${key}','${p.id}')">✏</button>
+          <button class="del-btn" onclick="deletePerson('${key}','${p.id}')">🗑</button>
           <div class="person-check ${p.met ? 'met' : ''}" onclick="togglePerson('${key}','${p.id}')"></div>
         </div>`;
       }
