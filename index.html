@@ -368,9 +368,10 @@
       box-shadow: 0 0 0 3px var(--accent-soft);
     }
     .inline-confirm-btn {
-      width: 28px; height: 28px; flex-shrink: 0; border: none; background: var(--accent); color: #fff;
+      min-width: 28px; width: auto; height: 28px; padding: 0 8px; flex-shrink: 0;
+      border: none; background: var(--accent); color: #fff;
       border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
+      display: flex; align-items: center; justify-content: center; gap: 3px; white-space: nowrap;
     }
     .inline-cancel-btn {
       width: 28px; height: 28px; flex-shrink: 0; border: none; background: var(--bg); color: var(--text-secondary);
