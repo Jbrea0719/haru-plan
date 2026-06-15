@@ -1,0 +1,19 @@
+{
+  "name": "하루 계획",
+  "short_name": "하루계획",
+  "description": "일정과 메모를 한 곳에",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F4F0",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
