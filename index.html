@@ -451,6 +451,20 @@
       pointer-events: none; white-space: nowrap;
     }
     .toast.show { transform: translateX(-50%) translateY(0); }
+    .action-toast {
+      position: fixed; bottom: max(80px, calc(68px + env(safe-area-inset-bottom))); left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1C1C1E; color: #fff; padding: 11px 16px 11px 20px; border-radius: 14px;
+      font-size: 14px; font-weight: 500; opacity: 0; transition: transform .3s, opacity .3s;
+      pointer-events: none; display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.25); z-index: 100; white-space: nowrap;
+    }
+    .action-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+    .action-toast-undo {
+      background: rgba(255,255,255,.18); border: none; color: #fff;
+      font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 8px;
+      cursor: pointer; font-family: inherit;
+    }
 
     /* ─── ALL DONE BANNER ─── */
     .all-done-banner {
@@ -774,6 +788,10 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="action-toast" id="action-toast">
+  <span id="action-toast-msg"></span>
+  <button class="action-toast-undo" onclick="undoSchedule()">취소</button>
+</div>
 
 <!-- ══ CALENDAR ══ -->
 <div class="cal-popup" id="cal-popup">
@@ -1582,6 +1600,122 @@ function showToast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
+let scheduleToastTimer;
+function showScheduleToast(msg, onUndo) {
+  const el = document.getElementById('action-toast');
+  document.getElementById('action-toast-msg').textContent = msg;
+  el._undo = onUndo;
+  el.classList.add('show');
+  clearTimeout(scheduleToastTimer);
+  scheduleToastTimer = setTimeout(() => { el.classList.remove('show'); el._undo = null; }, 5000);
+}
+function undoSchedule() {
+  const el = document.getElementById('action-toast');
+  clearTimeout(scheduleToastTimer);
+  el.classList.remove('show');
+  if (el._undo) { el._undo(); el._undo = null; }
+}
+
+function parseDateTimeFromMemo(text) {
+  if (!text || !text.trim()) return null;
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const WDAYS = ['일','월','화','수','목','금','토'];
+  const WDAY_IDX = { '일':0,'월':1,'화':2,'수':3,'목':4,'금':5,'토':6 };
+  let detectedDate = null;
+  const consumed = [];
+
+  // 1. (이번주|다음주)? + 요일
+  const wm = text.match(/(이번\s*주|다음\s*주)?\s*(월|화|수|목|금|토|일)\s*요일/);
+  if (wm) {
+    const isNext = wm[1] && wm[1].replace(/\s/g,'').startsWith('다음');
+    const target = WDAY_IDX[wm[2]], cur = now.getDay();
+    let diff = (target - cur + 7) % 7;
+    if (isNext) diff = diff === 0 ? 7 : diff + 7;
+    detectedDate = new Date(todayStart);
+    detectedDate.setDate(todayStart.getDate() + diff);
+    consumed.push(wm[0]);
+  }
+
+  // 2. 오늘 / 내일 / 모레
+  if (!detectedDate) {
+    const rm = text.match(/(오늘|내일|모레)/);
+    if (rm) {
+      const off = { '오늘':0, '내일':1, '모레':2 };
+      detectedDate = new Date(todayStart);
+      detectedDate.setDate(todayStart.getDate() + off[rm[1]]);
+      consumed.push(rm[0]);
+    }
+  }
+
+  // 3. N월 N일
+  if (!detectedDate) {
+    const am = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (am) {
+      let d = new Date(now.getFullYear(), parseInt(am[1])-1, parseInt(am[2]));
+      if (d < todayStart) d.setFullYear(d.getFullYear()+1);
+      detectedDate = d;
+      consumed.push(am[0]);
+    }
+  }
+
+  if (!detectedDate || detectedDate < todayStart) return null;
+
+  // 4. 시간: (오전|오후)? N시 (N분)?
+  let timeStr = '';
+  const tm = text.match(/(오전|오후)?\s*(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분?)?/);
+  if (tm) {
+    let h = parseInt(tm[2]);
+    const m = tm[3] ? parseInt(tm[3]) : 0;
+    if (tm[1] === '오후' && h < 12) h += 12;
+    else if (tm[1] === '오전' && h === 12) h = 0;
+    else if (!tm[1] && h < 9) h += 12; // 모호한 경우 오후로 추정
+    timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    consumed.push(tm[0]);
+  }
+
+  // 이벤트 텍스트: 날짜·시간 부분 제거
+  let eventText = text;
+  consumed.forEach(p => { eventText = eventText.replace(p, ''); });
+  eventText = eventText.replace(/\s+/g,' ').trim();
+  if (!eventText) eventText = text.trim();
+
+  const label = `${detectedDate.getMonth()+1}월 ${detectedDate.getDate()}일(${WDAYS[detectedDate.getDay()]})`;
+  return { dateKey: dateKey(detectedDate), timeStr, eventText, label };
+}
+
+function autoScheduleFromMemo(memo) {
+  const fullText = ((memo.title || '') + ' ' + (memo.content || '')).trim();
+  const parsed = parseDateTimeFromMemo(fullText);
+  if (!parsed) return;
+
+  const data = load();
+  if (!data[parsed.dateKey]) data[parsed.dateKey] = { tasks: [], people: [] };
+  if (data[parsed.dateKey].tasks.some(t => t.text === parsed.eventText)) return; // 중복 방지
+
+  const newId = uid();
+  data[parsed.dateKey].tasks.push({ id: newId, text: parsed.eventText, done: false });
+  save(data);
+  if (cloudReady()) pushDay(parsed.dateKey);
+
+  let timeLabel = '';
+  if (parsed.timeStr) {
+    const [h, m] = parsed.timeStr.split(':').map(Number);
+    const displayH = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    timeLabel = ` ${h >= 12 ? '오후' : '오전'} ${displayH}시${m ? ` ${m}분` : ''}`;
+  }
+
+  showScheduleToast(`📅 ${parsed.label}${timeLabel} 일정에 추가됐어요`, () => {
+    const d2 = load();
+    if (d2[parsed.dateKey]) {
+      d2[parsed.dateKey].tasks = d2[parsed.dateKey].tasks.filter(t => t.id !== newId);
+      save(d2);
+      if (cloudReady()) pushDay(parsed.dateKey);
+      showToast('일정 추가를 취소했어요');
+    }
+  });
+}
+
 // ═══════════════════════════════════════
 // DRAG & DROP
 // ═══════════════════════════════════════
@@ -1851,6 +1985,7 @@ function closeMemoEditor() {
           .eq('id', currentMemoId).eq('user_id', currentUser.id)
           .then(({ error }) => { if (error) console.error('[memo close-save]', error); });
       }
+      autoScheduleFromMemo(memo);
     }
   }
   document.getElementById('memo-editor-panel').classList.remove('open');
