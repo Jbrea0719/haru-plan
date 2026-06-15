@@ -1684,7 +1684,9 @@ function parseDateTimeFromMemo(text) {
   if (!eventText) eventText = text.trim();
 
   const label = `${detectedDate.getMonth()+1}월 ${detectedDate.getDate()}일(${WDAYS[detectedDate.getDay()]})`;
-  return { dateKey: dateKey(detectedDate), timeStr, eventText, label };
+  // UTC 변환 오차 방지: 로컬 날짜 컴포넌트로 직접 키 생성
+  const dKey = `${detectedDate.getFullYear()}-${String(detectedDate.getMonth()+1).padStart(2,'0')}-${String(detectedDate.getDate()).padStart(2,'0')}`;
+  return { dateKey: dKey, timeStr, eventText, label };
 }
 
 function fmtTimeLabel(timeStr) {
@@ -1702,7 +1704,9 @@ function isMeetingLine(text) {
 }
 
 function extractPersonName(text) {
-  const pm = text.match(/([가-힣]{1,5})(이랑|랑|와|과)/);
+  // 식사 키워드를 먼저 제거해야 '저녁정기' 같은 오탐 방지
+  const clean = text.replace(/저녁|점심|아침|식사/g, '').replace(/\s+/g, ' ').trim();
+  const pm = clean.match(/([가-힣]{1,5})(이랑|랑|와|과)/);
   return pm ? pm[1] : null;
 }
 
