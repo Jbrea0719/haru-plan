@@ -983,7 +983,7 @@ async function sbUpsertDay(dateKeyVal, day) {
   if (ue) throw ue;
   if (!upd || !upd.length) {
     const { error: ie } = await sbClient.from('haru_plans')
-      .insert({ user_id: currentUser.id, date_key: dateKeyVal, ...payload });
+      .insert({ user_id: currentUser.id, date_key: dateKeyVal, sync_code: '', ...payload });
     if (ie) throw ie;
   }
 }
