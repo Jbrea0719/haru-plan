@@ -1619,6 +1619,9 @@ function undoSchedule() {
 function parseDateTimeFromMemo(text) {
   if (!text || !text.trim()) return null;
   const now = new Date();
+  // 정오(12:00) 기준으로 잡아야 dateKey(toISOString)가 UTC 변환 후에도 로컬 날짜와 일치
+  const noon = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+  const todayNoon = noon(now);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const WDAYS = ['일','월','화','수','목','금','토'];
   const WDAY_IDX = { '일':0,'월':1,'화':2,'수':3,'목':4,'금':5,'토':6 };
@@ -1632,8 +1635,8 @@ function parseDateTimeFromMemo(text) {
     const target = WDAY_IDX[wm[2]], cur = now.getDay();
     let diff = (target - cur + 7) % 7;
     if (isNext) diff = diff === 0 ? 7 : diff + 7;
-    detectedDate = new Date(todayStart);
-    detectedDate.setDate(todayStart.getDate() + diff);
+    detectedDate = noon(now);
+    detectedDate.setDate(todayNoon.getDate() + diff);
     consumed.push(wm[0]);
   }
 
@@ -1642,8 +1645,8 @@ function parseDateTimeFromMemo(text) {
     const rm = text.match(/(오늘|내일|모레)/);
     if (rm) {
       const off = { '오늘':0, '내일':1, '모레':2 };
-      detectedDate = new Date(todayStart);
-      detectedDate.setDate(todayStart.getDate() + off[rm[1]]);
+      detectedDate = noon(now);
+      detectedDate.setDate(todayNoon.getDate() + off[rm[1]]);
       consumed.push(rm[0]);
     }
   }
@@ -1652,8 +1655,8 @@ function parseDateTimeFromMemo(text) {
   if (!detectedDate) {
     const am = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
     if (am) {
-      let d = new Date(now.getFullYear(), parseInt(am[1])-1, parseInt(am[2]));
-      if (d < todayStart) d.setFullYear(d.getFullYear()+1);
+      let d = new Date(now.getFullYear(), parseInt(am[1])-1, parseInt(am[2]), 12, 0, 0);
+      if (d < todayNoon) d.setFullYear(d.getFullYear()+1);
       detectedDate = d;
       consumed.push(am[0]);
     }
