@@ -74,6 +74,14 @@
     }
     .auth-submit:active { transform: scale(.98); background: #4338CA; }
     .auth-submit:disabled { opacity: .6; cursor: default; }
+    .auth-autologin {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+      cursor: pointer; user-select: none;
+    }
+    .auth-autologin input[type="checkbox"] {
+      width: 17px; height: 17px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0;
+    }
+    .auth-autologin span { font-size: 13px; color: var(--text-secondary); }
 
     /* ─── HEADER ─── */
     .header {
@@ -604,6 +612,10 @@
       onkeydown="if(event.key==='Enter')document.getElementById('auth-password').focus()">
     <input class="auth-input" id="auth-password" type="password" placeholder="비밀번호 (6자 이상)"
       onkeydown="if(event.key==='Enter')authSubmit()">
+    <label class="auth-autologin" id="autologin-label">
+      <input type="checkbox" id="autologin-checkbox" onchange="setAutoLogin(this.checked)">
+      <span>자동로그인</span>
+    </label>
     <div class="auth-error" id="auth-error"></div>
     <button class="auth-submit" id="auth-submit" onclick="authSubmit()">로그인</button>
   </div>
@@ -722,9 +734,17 @@
 const KEY = 'haru-v1';
 const DEFAULT_SB_URL = 'https://gnryzmjcpsttqmyaiaos.supabase.co';
 const DEFAULT_SB_KEY = 'sb_publishable_hROm7-WeRcfkNtV040t2pA_wMEy3heV';
+const AUTOLOGIN_KEY = 'haru-autologin';
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } }
 function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
+function getAutoLogin() {
+  const v = localStorage.getItem(AUTOLOGIN_KEY);
+  return v === null ? true : v === 'true';
+}
+function setAutoLogin(val) {
+  localStorage.setItem(AUTOLOGIN_KEY, val ? 'true' : 'false');
+}
 
 // ═══════════════════════════════════════
 // AUTH
@@ -735,7 +755,12 @@ let pollingInterval = null;
 let authMode = 'login';
 
 async function initApp() {
-  sbClient = supabase.createClient(DEFAULT_SB_URL, DEFAULT_SB_KEY);
+  const autoLogin = getAutoLogin();
+  const cb = document.getElementById('autologin-checkbox');
+  if (cb) cb.checked = autoLogin;
+  sbClient = supabase.createClient(DEFAULT_SB_URL, DEFAULT_SB_KEY, {
+    auth: { persistSession: autoLogin }
+  });
 
   sbClient.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
