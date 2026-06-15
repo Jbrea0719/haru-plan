@@ -1632,11 +1632,13 @@ function parseDateTimeFromMemo(text) {
   const wm = text.match(/(이번\s*주|다음\s*주)?\s*(월|화|수|목|금|토|일)\s*요일/);
   if (wm) {
     const isNext = wm[1] && wm[1].replace(/\s/g,'').startsWith('다음');
-    const target = WDAY_IDX[wm[2]], cur = now.getDay();
-    let diff = (target - cur + 7) % 7;
-    if (isNext) diff = diff === 0 ? 7 : diff + 7;
-    detectedDate = noon(now);
-    detectedDate.setDate(todayNoon.getDate() + diff);
+    const target = WDAY_IDX[wm[2]];
+    // 오늘부터 1일씩 순회해서 목표 요일에 도달 (diff 모듈러 연산 없이 직접 탐색)
+    detectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+    while (detectedDate.getDay() !== target) {
+      detectedDate.setDate(detectedDate.getDate() + 1);
+    }
+    if (isNext) detectedDate.setDate(detectedDate.getDate() + 7);
     consumed.push(wm[0]);
   }
 
@@ -1758,7 +1760,7 @@ function autoScheduleFromMemo(memo) {
   if (!created.length) return;
 
   const msg = created.length === 1
-    ? `📅 ${created[0].label}${fmtTimeLabel(created[0].timeStr)} ${created[0].type === 'person' ? created[0].name + ' 약속' : '할일'} 추가됐어요`
+    ? `📅 ${created[0].label}${fmtTimeLabel(created[0].timeStr)} ${created[0].type === 'person' ? created[0].name + ' 약속' : '할일'} 추가됐어요 [key:${created[0].dateKey}]`
     : `📅 일정 ${created.length}개가 자동 등록됐어요`;
 
   showScheduleToast(msg, () => {
