@@ -1703,15 +1703,19 @@ function fmtTimeLabel(timeStr) {
 function isMeetingLine(text) {
   const hasParticle = /[가-힣](이랑|랑|와|과)/.test(text);
   const hasMeal = /저녁|점심|아침|식사/.test(text);
-  const hasMeetWord = /약속|만남|만나/.test(text);
-  return hasParticle || (hasMeal && hasMeetWord);
+  const hasMeetWord = /약속|만남|만나|미팅|모임/.test(text);
+  return hasParticle || hasMeal || hasMeetWord;
 }
 
 function extractPersonName(text) {
-  // 식사 키워드를 먼저 제거해야 '저녁정기' 같은 오탐 방지
+  // 1차: 식사 키워드 제거 후 파티클(랑/와/과)로 이름 추출
   const clean = text.replace(/저녁|점심|아침|식사/g, '').replace(/\s+/g, ' ').trim();
   const pm = clean.match(/([가-힣]{1,5})(이랑|랑|와|과)/);
-  return pm ? pm[1] : null;
+  if (pm) return pm[1];
+  // 2차: 파티클 없을 경우 — 공통 단어 제거 후 남은 2~5자 한글 단어를 이름으로 간주
+  const noStop = text.replace(/저녁|점심|아침|식사|약속|만남|만나|미팅|모임|회의|일정|식당/g, '').replace(/\s+/g, ' ').trim();
+  const nm = noStop.match(/([가-힣]{2,5})/);
+  return nm ? nm[1] : null;
 }
 
 function extractMeal(text) {
