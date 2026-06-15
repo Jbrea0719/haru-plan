@@ -462,6 +462,84 @@
     .hist-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-muted); }
     .hist-meta-item { display: flex; align-items: center; gap: 3px; }
     .hist-carried { margin-left: auto; font-size: 11px; color: var(--amber); font-weight: 600; }
+
+    /* ─── MEMO ─── */
+    .memo-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .memo-search-wrap {
+      flex: 1; display: flex; align-items: center; gap: 6px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); padding: 9px 12px; transition: border-color .15s;
+    }
+    .memo-search-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .memo-search-icon { font-size: 14px; flex-shrink: 0; }
+    .memo-search-input {
+      flex: 1; border: none; outline: none; background: none;
+      font-size: 14px; font-family: inherit; color: var(--text-primary);
+    }
+    .memo-search-input::placeholder { color: var(--text-muted); }
+    .memo-new-btn {
+      padding: 10px 14px; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700;
+      font-family: inherit; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s;
+    }
+    .memo-new-btn:active { background: #4338CA; }
+    .memo-folders {
+      display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 14px;
+      scrollbar-width: none;
+    }
+    .memo-folders::-webkit-scrollbar { display: none; }
+    .memo-folder-chip {
+      flex-shrink: 0; padding: 6px 12px; background: var(--surface);
+      border: 1.5px solid var(--border); border-radius: 100px;
+      font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      cursor: pointer; transition: all .15s; user-select: none;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .memo-folder-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .memo-folder-chip.active .memo-folder-count { color: rgba(255,255,255,.7); }
+    .memo-folder-count { font-size: 11px; color: var(--text-muted); }
+    .memo-folder-add {
+      flex-shrink: 0; width: 32px; height: 32px; border: 1.5px dashed var(--border);
+      border-radius: 100px; background: none; color: var(--text-muted); font-size: 16px;
+      cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center;
+    }
+    .memo-folder-add:active { border-color: var(--accent); color: var(--accent); }
+    .memo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .memo-card {
+      border-radius: var(--radius); padding: 13px 12px; cursor: pointer;
+      transition: transform .15s, box-shadow .15s; position: relative;
+      min-height: 100px; border: 1.5px solid rgba(0,0,0,.06);
+      display: flex; flex-direction: column;
+    }
+    .memo-card:active { transform: scale(.97); box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+    .memo-card-top {
+      display: flex; align-items: center; min-height: 22px; margin-bottom: 4px;
+    }
+    .memo-pin-icon { font-size: 12px; margin-right: auto; }
+    .memo-card-del {
+      width: 24px; height: 24px; border: none; background: none; cursor: pointer;
+      font-size: 12px; color: var(--text-muted); border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; transition: background .15s;
+      margin-left: auto; flex-shrink: 0;
+    }
+    .memo-card-del:active { background: rgba(0,0,0,.1); }
+    .memo-card-title {
+      font-size: 14px; font-weight: 700; color: var(--text-primary);
+      line-height: 1.3; margin-bottom: 5px; word-break: break-word;
+    }
+    .memo-card-title.placeholder { color: var(--text-muted); font-weight: 400; font-style: italic; }
+    .memo-card-preview {
+      font-size: 12px; color: var(--text-secondary); line-height: 1.5; flex: 1;
+      word-break: break-word; overflow: hidden;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    }
+    .memo-card-date { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+    .memo-empty {
+      grid-column: 1 / -1; text-align: center; padding: 56px 24px;
+    }
+    .memo-empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .memo-empty-title { font-size: 16px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
+    .memo-empty-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -491,7 +569,7 @@
     <div class="header-row">
       <div style="display:flex;align-items:center;gap:8px">
         <span class="app-name">하루 계획</span>
-        <div class="sync-dot" id="sync-dot" onclick="if(currentUser)pullFromCloud()" style="cursor:pointer" title="클릭해서 최신 데이터 가져오기"></div>
+        <div class="sync-dot" id="sync-dot" onclick="if(currentUser)syncAll()" style="cursor:pointer" title="클릭해서 최신 데이터 가져오기"></div>
       </div>
       <button class="user-btn" id="user-btn" onclick="openAccountPanel()" title="계정">
         <span id="user-initials">?</span>
@@ -528,11 +606,15 @@
       <div id="view-history" style="display:none"></div>
     </div>
     <div id="memo-content" style="display:none">
-      <div class="empty">
-        <div class="empty-icon">📝</div>
-        <div class="empty-title">메모 기능 준비 중</div>
-        <div class="empty-desc">다음 세션에서 추가될 예정이에요</div>
+      <div class="memo-toolbar">
+        <div class="memo-search-wrap">
+          <span class="memo-search-icon">🔍</span>
+          <input class="memo-search-input" id="memo-search" placeholder="메모 검색..." oninput="memoSearch(this.value)">
+        </div>
+        <button class="memo-new-btn" onclick="createMemo()">＋ 새 메모</button>
       </div>
+      <div class="memo-folders" id="memo-folders"></div>
+      <div class="memo-grid" id="memo-grid"></div>
     </div>
   </div>
 </div>
@@ -622,6 +704,7 @@ async function showApp() {
   refreshHeader();
   render();
   await pullFromCloud();
+  await pullMemos();
   const localDays = Object.keys(load());
   if (localDays.length) await pushAllDays();
   startPolling();
@@ -771,6 +854,7 @@ function switchMainTab(tab) {
   document.getElementById('schedule-content').style.display = tab === 'schedule' ? 'block' : 'none';
   document.getElementById('memo-content').style.display = tab === 'memo' ? 'block' : 'none';
   if (tab === 'schedule') render();
+  if (tab === 'memo') renderMemoList();
 }
 
 // ═══════════════════════════════════════
@@ -1366,6 +1450,139 @@ function dndCommit(type,key,fromIdx,toIdx) {
     const [item]=tasks.splice(fromIdx,1); tasks.splice(toIdx,0,item);
     save(data); pushDay(key); renderExec();
   } else { syncPlanDOM(); const [item]=editTasks.splice(fromIdx,1); editTasks.splice(toIdx,0,item); renderPlanHTML(); }
+}
+
+// ═══════════════════════════════════════
+// MEMO
+// ═══════════════════════════════════════
+let memos = [];
+let memoFolders = [];
+let activeFolderId = null;
+let memoSearchQuery = '';
+
+const MEMO_COLOR_BG = {
+  '': '#FFFFFF', 'yellow': '#FEF9C3', 'green': '#DCFCE7',
+  'blue': '#DBEAFE', 'pink': '#FCE7F3', 'red': '#FEE2E2', 'purple': '#EDE9FE'
+};
+
+async function syncAll() {
+  await pullFromCloud();
+  await pullMemos();
+}
+
+async function pullMemos() {
+  if (!cloudReady()) return;
+  const [mr, fr] = await Promise.all([
+    sbClient.from('memos').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false }),
+    sbClient.from('memo_folders').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true })
+  ]);
+  if (!mr.error) memos = mr.data || [];
+  if (!fr.error) memoFolders = fr.data || [];
+  if (mainTab === 'memo') renderMemoList();
+}
+
+async function createMemo() {
+  if (!cloudReady()) { showToast('로그인이 필요해요'); return; }
+  const { data, error } = await sbClient.from('memos').insert({
+    user_id: currentUser.id, title: '', content: '',
+    folder_id: activeFolderId, tags: [], pinned: false, color: '',
+    has_checklist: false, checklist: []
+  }).select().single();
+  if (error) { showToast('메모 생성 실패'); console.error(error); return; }
+  memos.unshift(data);
+  renderMemoList();
+  showToast('새 메모를 만들었어요');
+}
+
+async function deleteMemo(id) {
+  if (!confirm('이 메모를 삭제할까요?\n되돌릴 수 없어요.')) return;
+  const { error } = await sbClient.from('memos').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) { showToast('삭제 실패'); return; }
+  memos = memos.filter(m => m.id !== id);
+  renderMemoList();
+  showToast('삭제됐어요');
+}
+
+async function createFolder() {
+  const name = prompt('폴더 이름을 입력하세요');
+  if (!name?.trim()) return;
+  const { data, error } = await sbClient.from('memo_folders').insert({
+    user_id: currentUser.id, name: name.trim(), icon: '📁'
+  }).select().single();
+  if (error) { showToast('폴더 생성 실패'); return; }
+  memoFolders.push(data);
+  renderMemoList();
+}
+
+function switchMemoFolder(id) { activeFolderId = id; renderMemoList(); }
+
+function memoSearch(q) { memoSearchQuery = q; renderMemoList(); }
+
+function getFilteredMemos() {
+  let list = activeFolderId !== null
+    ? memos.filter(m => m.folder_id === activeFolderId)
+    : memos;
+  if (memoSearchQuery.trim()) {
+    const q = memoSearchQuery.trim().toLowerCase();
+    list = list.filter(m =>
+      (m.title || '').toLowerCase().includes(q) ||
+      (m.content || '').toLowerCase().includes(q)
+    );
+  }
+  return [...list.filter(m => m.pinned), ...list.filter(m => !m.pinned)];
+}
+
+function formatMemoDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr), now = new Date();
+  const diffMin = Math.floor((now - d) / 60000);
+  if (diffMin < 1) return '방금';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}시간 전`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD < 7) return `${diffD}일 전`;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function renderMemoFolders() {
+  const el = document.getElementById('memo-folders'); if (!el) return;
+  let html = `<div class="memo-folder-chip ${activeFolderId === null ? 'active' : ''}" onclick="switchMemoFolder(null)">전체 <span class="memo-folder-count">${memos.length}</span></div>`;
+  memoFolders.forEach(f => {
+    const cnt = memos.filter(m => m.folder_id === f.id).length;
+    html += `<div class="memo-folder-chip ${activeFolderId === f.id ? 'active' : ''}" onclick="switchMemoFolder('${f.id}')">${esc(f.icon)} ${esc(f.name)} <span class="memo-folder-count">${cnt}</span></div>`;
+  });
+  html += `<button class="memo-folder-add" onclick="createFolder()">＋</button>`;
+  el.innerHTML = html;
+}
+
+function renderMemoList() {
+  renderMemoFolders();
+  const grid = document.getElementById('memo-grid'); if (!grid) return;
+  const list = getFilteredMemos();
+  if (!list.length) {
+    const noData = memoSearchQuery ? ['검색 결과가 없어요','다른 키워드로 검색해보세요'] : ['메모가 없어요','＋ 새 메모를 눌러 첫 메모를 작성해보세요'];
+    grid.innerHTML = `<div class="memo-empty"><div class="memo-empty-icon">📝</div><div class="memo-empty-title">${noData[0]}</div><div class="memo-empty-desc">${noData[1]}</div></div>`;
+    return;
+  }
+  grid.innerHTML = list.map(m => {
+    const bg = MEMO_COLOR_BG[m.color] || '#FFFFFF';
+    const title = m.title || '';
+    const preview = (m.content || '').slice(0, 80) + ((m.content || '').length > 80 ? '…' : '');
+    return `<div class="memo-card" style="background:${bg}" onclick="openMemoEditor('${m.id}')">
+      <div class="memo-card-top">
+        ${m.pinned ? '<span class="memo-pin-icon">📌</span>' : ''}
+        <button class="memo-card-del" onclick="event.stopPropagation();deleteMemo('${m.id}')">🗑</button>
+      </div>
+      <div class="memo-card-title${!title ? ' placeholder' : ''}">${esc(title || '제목 없음')}</div>
+      ${preview ? `<div class="memo-card-preview">${esc(preview)}</div>` : ''}
+      <div class="memo-card-date">${formatMemoDate(m.updated_at)}</div>
+    </div>`;
+  }).join('');
+}
+
+function openMemoEditor(id) {
+  showToast('메모 편집기는 다음 업데이트에서 추가돼요 ✍️');
 }
 
 // ═══════════════════════════════════════
