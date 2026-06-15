@@ -595,6 +595,82 @@
       resize: none; width: 100%;
     }
     .memo-editor-content::placeholder { color: var(--text-muted); }
+
+    /* ─── MEMO EDITOR ADVANCED ─── */
+    .memo-pin-btn {
+      background: none; border: none; font-size: 18px; cursor: pointer;
+      padding: 4px; border-radius: 7px; transition: all .15s;
+      opacity: .28; flex-shrink: 0;
+    }
+    .memo-pin-btn.pinned { opacity: 1; }
+    .memo-pin-btn:active { transform: scale(.85); }
+    .memo-editor-meta {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-bottom: 1px solid rgba(0,0,0,.06); flex-shrink: 0;
+    }
+    .memo-folder-select {
+      flex: 1; border: none; background: transparent; font-size: 13px;
+      font-family: inherit; color: var(--text-secondary); cursor: pointer; outline: none; min-width: 0;
+    }
+    .memo-cl-toggle {
+      border: 1.5px solid var(--border); background: none; font-size: 12px; font-weight: 600;
+      color: var(--text-muted); cursor: pointer; padding: 5px 10px;
+      border-radius: 8px; font-family: inherit; transition: all .15s; flex-shrink: 0;
+    }
+    .memo-cl-toggle.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .memo-editor-tags {
+      display: flex; flex-wrap: wrap; gap: 5px; padding: 7px 14px;
+      align-items: center; min-height: 36px; flex-shrink: 0;
+      border-bottom: 1px solid rgba(0,0,0,.05);
+    }
+    .memo-tag-chip {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: rgba(0,0,0,.07); border-radius: 100px;
+      padding: 3px 9px; font-size: 12px; font-weight: 500; color: var(--text-secondary);
+    }
+    .memo-tag-del {
+      background: none; border: none; cursor: pointer; font-size: 14px;
+      color: var(--text-muted); padding: 0; line-height: 1; transition: color .15s;
+    }
+    .memo-tag-del:active { color: var(--red); }
+    .memo-tag-input {
+      border: none; outline: none; background: none; font-size: 13px;
+      font-family: inherit; color: var(--text-primary); min-width: 90px; flex: 1;
+    }
+    .memo-tag-input::placeholder { color: var(--text-muted); }
+    .memo-editor-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .memo-checklist { flex: 1; overflow-y: auto; padding: 6px 12px 16px; }
+    .memo-cl-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 7px 4px;
+      border-bottom: 1px solid rgba(0,0,0,.05);
+    }
+    .memo-cl-check {
+      width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+      cursor: pointer; flex-shrink: 0; margin-top: 3px;
+      display: flex; align-items: center; justify-content: center; transition: all .15s;
+    }
+    .memo-cl-check.done { background: var(--accent); border-color: var(--accent); }
+    .memo-cl-check.done::after {
+      content: ''; width: 4px; height: 8px; border: 2px solid #fff;
+      border-top: none; border-left: none; transform: rotate(45deg) translateY(-1px);
+    }
+    .memo-cl-text {
+      flex: 1; border: none; outline: none; background: none; font-size: 15px;
+      font-family: inherit; color: var(--text-primary); line-height: 1.5; padding: 0;
+    }
+    .memo-cl-text.done { text-decoration: line-through; color: var(--text-muted); }
+    .memo-cl-del {
+      width: 26px; height: 26px; border: none; background: none; cursor: pointer;
+      font-size: 15px; color: var(--text-muted); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
+    }
+    .memo-cl-del:active { background: #fee2e2; color: var(--red); }
+    .memo-cl-add {
+      width: 100%; padding: 10px 4px; border: none; background: none; cursor: pointer;
+      font-size: 14px; font-family: inherit; color: var(--text-muted);
+      text-align: left; transition: color .15s; display: flex; align-items: center; gap: 6px;
+    }
+    .memo-cl-add:active { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -719,12 +795,19 @@
   <div class="memo-editor-header">
     <button class="memo-editor-back" onclick="closeMemoEditor()">← 닫기</button>
     <div class="memo-color-picker" id="memo-color-picker"></div>
+    <button class="memo-pin-btn" id="memo-pin-btn" onclick="toggleMemoPin()">📌</button>
     <div class="memo-save-status" id="memo-save-status"></div>
   </div>
   <input class="memo-editor-title" id="memo-editor-title" placeholder="제목"
     oninput="triggerMemoSave()">
-  <textarea class="memo-editor-content" id="memo-editor-content"
-    placeholder="내용을 입력하세요..." oninput="triggerMemoSave()"></textarea>
+  <div class="memo-editor-meta">
+    <select class="memo-folder-select" id="memo-folder-select" onchange="setMemoFolder(this.value)">
+      <option value="">📁 폴더 없음</option>
+    </select>
+    <button class="memo-cl-toggle" id="memo-cl-toggle" onclick="toggleChecklistMode()">☑ 체크리스트</button>
+  </div>
+  <div class="memo-editor-tags" id="memo-editor-tags"></div>
+  <div class="memo-editor-body" id="memo-editor-body"></div>
 </div>
 
 <script>
@@ -1653,7 +1736,14 @@ function renderMemoList() {
   grid.innerHTML = list.map(m => {
     const bg = MEMO_COLOR_BG[m.color] || '#FFFFFF';
     const title = m.title || '';
-    const preview = (m.content || '').slice(0, 80) + ((m.content || '').length > 80 ? '…' : '');
+    let preview;
+    if (m.has_checklist) {
+      const items = m.checklist || [];
+      const doneCount = items.filter(i => i.done).length;
+      preview = items.length ? `☑ ${doneCount}/${items.length} 완료` : '☑ 체크리스트';
+    } else {
+      preview = (m.content || '').slice(0, 80) + ((m.content || '').length > 80 ? '…' : '');
+    }
     return `<div class="memo-card" style="background:${bg}" onclick="openMemoEditor('${m.id}')">
       <div class="memo-card-top">
         ${m.pinned ? '<span class="memo-pin-icon">📌</span>' : ''}
@@ -1669,22 +1759,51 @@ function renderMemoList() {
 const MEMO_COLOR_KEYS = ['', 'yellow', 'green', 'blue', 'pink', 'red', 'purple'];
 let currentMemoId = null;
 let memoSaveTimer = null;
+let memoChecklist = [];
 
+// ── 공통 헬퍼 ──
+function showSaveStatus(msg) {
+  const el = document.getElementById('memo-save-status'); if (!el) return;
+  el.textContent = msg;
+  if (msg === '저장됨 ✓') setTimeout(() => { if (el.textContent === '저장됨 ✓') el.textContent = ''; }, 2000);
+}
+
+function getChecklistFromDOM() {
+  return memoChecklist.map((item, i) => ({
+    ...item,
+    text: document.querySelector(`[data-cl-idx="${i}"]`)?.value ?? item.text
+  }));
+}
+
+function rerenderBody() {
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  const el = document.getElementById('memo-editor-body'); if (!el) return;
+  if (memo.has_checklist) {
+    el.innerHTML = getChecklistHTML(memoChecklist) +
+      `<button class="memo-cl-add" onclick="addClItem()">＋ 항목 추가</button>`;
+  }
+}
+
+// ── 열기 / 닫기 ──
 function openMemoEditor(id) {
-  const memo = memos.find(m => m.id === id);
-  if (!memo) return;
+  const memo = memos.find(m => m.id === id); if (!memo) return;
   currentMemoId = id;
+  memoChecklist = (memo.checklist || []).map(item => ({ ...item }));
   const panel = document.getElementById('memo-editor-panel');
   panel.style.background = MEMO_COLOR_BG[memo.color] || '#FFFFFF';
   document.getElementById('memo-editor-title').value = memo.title || '';
-  document.getElementById('memo-editor-content').value = memo.content || '';
-  document.getElementById('memo-save-status').textContent = '';
+  showSaveStatus('');
   renderMemoColorPicker(memo.color || '');
+  renderMemoPinBtn(!!memo.pinned);
+  renderMemoEditorMeta(memo);
+  renderMemoTags(memo.tags || []);
+  renderMemoBody(memo);
   panel.classList.add('open');
   setTimeout(() => {
-    const content = document.getElementById('memo-editor-content');
-    content.focus();
-    content.setSelectionRange(content.value.length, content.value.length);
+    if (!memo.has_checklist) {
+      const c = document.getElementById('memo-editor-content');
+      if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); }
+    }
   }, 320);
 }
 
@@ -1693,24 +1812,26 @@ function closeMemoEditor() {
   memoSaveTimer = null;
   const memo = memos.find(m => m.id === currentMemoId);
   if (memo) {
-    memo.title = document.getElementById('memo-editor-title').value;
-    memo.content = document.getElementById('memo-editor-content').value;
+    memo.title = document.getElementById('memo-editor-title')?.value || '';
+    if (memo.has_checklist) { memo.checklist = getChecklistFromDOM(); }
+    else { memo.content = document.getElementById('memo-editor-content')?.value || ''; }
     memo.updated_at = new Date().toISOString();
     if (cloudReady()) {
-      sbClient.from('memos')
-        .update({ title: memo.title, content: memo.content, updated_at: memo.updated_at })
+      const payload = { title: memo.title, updated_at: memo.updated_at };
+      if (memo.has_checklist) payload.checklist = memo.checklist;
+      else payload.content = memo.content;
+      sbClient.from('memos').update(payload)
         .eq('id', currentMemoId).eq('user_id', currentUser.id)
         .then(({ error }) => { if (error) console.error('[memo close-save]', error); });
     }
   }
   document.getElementById('memo-editor-panel').classList.remove('open');
-  currentMemoId = null;
+  currentMemoId = null; memoChecklist = [];
   renderMemoList();
 }
 
 function triggerMemoSave() {
-  const statusEl = document.getElementById('memo-save-status');
-  if (statusEl) statusEl.textContent = '저장 중...';
+  showSaveStatus('저장 중...');
   clearTimeout(memoSaveTimer);
   memoSaveTimer = setTimeout(saveMemoNow, 1500);
 }
@@ -1718,33 +1839,200 @@ function triggerMemoSave() {
 async function saveMemoNow() {
   if (!currentMemoId || !cloudReady()) return;
   memoSaveTimer = null;
-  const title = document.getElementById('memo-editor-title').value;
-  const content = document.getElementById('memo-editor-content').value;
-  const memo = memos.find(m => m.id === currentMemoId);
-  if (!memo) return;
-  memo.title = title;
-  memo.content = content;
-  memo.updated_at = new Date().toISOString();
-  const { error } = await sbClient.from('memos')
-    .update({ title, content, updated_at: memo.updated_at })
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  memo.title = document.getElementById('memo-editor-title')?.value || '';
+  const payload = { title: memo.title, updated_at: new Date().toISOString() };
+  if (memo.has_checklist) {
+    memo.checklist = getChecklistFromDOM();
+    payload.checklist = memo.checklist;
+  } else {
+    memo.content = document.getElementById('memo-editor-content')?.value || '';
+    payload.content = memo.content;
+  }
+  memo.updated_at = payload.updated_at;
+  const { error } = await sbClient.from('memos').update(payload)
     .eq('id', currentMemoId).eq('user_id', currentUser.id);
-  const statusEl = document.getElementById('memo-save-status');
-  if (!statusEl) return;
-  if (error) { statusEl.textContent = '저장 실패'; console.error(error); return; }
-  statusEl.textContent = '저장됨 ✓';
-  setTimeout(() => { if (statusEl.textContent === '저장됨 ✓') statusEl.textContent = ''; }, 2000);
+  if (error) { showSaveStatus('저장 실패'); console.error(error); return; }
+  showSaveStatus('저장됨 ✓');
 }
 
+// ── 핀 ──
+function renderMemoPinBtn(pinned) {
+  const btn = document.getElementById('memo-pin-btn');
+  if (btn) btn.classList.toggle('pinned', pinned);
+}
+
+async function toggleMemoPin() {
+  if (!currentMemoId || !cloudReady()) return;
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  memo.pinned = !memo.pinned;
+  renderMemoPinBtn(memo.pinned);
+  await sbClient.from('memos').update({ pinned: memo.pinned })
+    .eq('id', currentMemoId).eq('user_id', currentUser.id);
+  showSaveStatus('저장됨 ✓');
+}
+
+// ── 메타 (폴더 + 체크리스트 모드) ──
+function renderMemoEditorMeta(memo) {
+  const sel = document.getElementById('memo-folder-select');
+  if (sel) {
+    sel.innerHTML = `<option value="">📁 폴더 없음</option>` +
+      memoFolders.map(f =>
+        `<option value="${f.id}"${memo.folder_id === f.id ? ' selected' : ''}>${esc(f.icon)} ${esc(f.name)}</option>`
+      ).join('');
+  }
+  const clBtn = document.getElementById('memo-cl-toggle');
+  if (clBtn) clBtn.classList.toggle('active', !!memo.has_checklist);
+}
+
+async function setMemoFolder(folderId) {
+  if (!currentMemoId || !cloudReady()) return;
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  memo.folder_id = folderId || null;
+  await sbClient.from('memos').update({ folder_id: memo.folder_id })
+    .eq('id', currentMemoId).eq('user_id', currentUser.id);
+  showSaveStatus('저장됨 ✓');
+}
+
+// ── 태그 ──
+function renderMemoTags(tags) {
+  const el = document.getElementById('memo-editor-tags'); if (!el) return;
+  const chips = (tags || []).map((t, i) =>
+    `<span class="memo-tag-chip">#${esc(t)}<button class="memo-tag-del" onclick="removeMemoTag(${i})">×</button></span>`
+  ).join('');
+  el.innerHTML = chips + `<input class="memo-tag-input" id="memo-tag-input" placeholder="태그 추가 (Enter)" onkeydown="onTagKeydown(event)">`;
+}
+
+async function addMemoTag(tag) {
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  tag = tag.replace(/^#/, '').trim();
+  if (!tag || (memo.tags || []).includes(tag)) return;
+  memo.tags = [...(memo.tags || []), tag];
+  renderMemoTags(memo.tags);
+  document.getElementById('memo-tag-input')?.focus();
+  await sbClient.from('memos').update({ tags: memo.tags })
+    .eq('id', currentMemoId).eq('user_id', currentUser.id);
+  showSaveStatus('저장됨 ✓');
+}
+
+async function removeMemoTag(idx) {
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  memo.tags = (memo.tags || []).filter((_, i) => i !== idx);
+  renderMemoTags(memo.tags);
+  await sbClient.from('memos').update({ tags: memo.tags })
+    .eq('id', currentMemoId).eq('user_id', currentUser.id);
+  showSaveStatus('저장됨 ✓');
+}
+
+function onTagKeydown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const val = e.target.value.trim();
+    if (val) { e.target.value = ''; addMemoTag(val); }
+  }
+}
+
+// ── 바디 (텍스트 / 체크리스트) ──
+function renderMemoBody(memo) {
+  const el = document.getElementById('memo-editor-body'); if (!el) return;
+  if (memo.has_checklist) {
+    el.innerHTML = getChecklistHTML(memoChecklist) +
+      `<button class="memo-cl-add" onclick="addClItem()">＋ 항목 추가</button>`;
+  } else {
+    el.innerHTML = `<textarea class="memo-editor-content" id="memo-editor-content" placeholder="내용을 입력하세요..." oninput="triggerMemoSave()"></textarea>`;
+    document.getElementById('memo-editor-content').value = memo.content || '';
+  }
+}
+
+function getChecklistHTML(items) {
+  return `<div class="memo-checklist">${(items || []).map((item, i) =>
+    `<div class="memo-cl-item">
+      <div class="memo-cl-check${item.done ? ' done' : ''}" onclick="toggleClItem(${i})"></div>
+      <input class="memo-cl-text${item.done ? ' done' : ''}" value="${esc(item.text)}"
+        data-cl-idx="${i}" oninput="onClInput(${i},this.value)"
+        onkeydown="onClKeydown(event,${i})" placeholder="항목 입력...">
+      <button class="memo-cl-del" onclick="removeClItem(${i})">×</button>
+    </div>`
+  ).join('')}</div>`;
+}
+
+async function toggleChecklistMode() {
+  if (!currentMemoId) return;
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
+  if (!memo.has_checklist) {
+    const c = document.getElementById('memo-editor-content');
+    if (c) memo.content = c.value;
+    if (!memoChecklist.length) memoChecklist = [{ id: uid(), text: '', done: false }];
+  } else {
+    memoChecklist = getChecklistFromDOM();
+    memo.checklist = [...memoChecklist];
+  }
+  memo.has_checklist = !memo.has_checklist;
+  document.getElementById('memo-cl-toggle')?.classList.toggle('active', memo.has_checklist);
+  renderMemoBody(memo);
+  if (cloudReady()) {
+    await sbClient.from('memos').update({
+      has_checklist: memo.has_checklist,
+      checklist: memo.checklist || [],
+      content: memo.content || ''
+    }).eq('id', currentMemoId).eq('user_id', currentUser.id);
+  }
+  showSaveStatus('저장됨 ✓');
+}
+
+function toggleClItem(idx) {
+  memoChecklist = getChecklistFromDOM();
+  memoChecklist[idx].done = !memoChecklist[idx].done;
+  const memo = memos.find(m => m.id === currentMemoId);
+  if (memo) memo.checklist = [...memoChecklist];
+  rerenderBody(); triggerMemoSave();
+}
+
+function addClItem() {
+  memoChecklist = getChecklistFromDOM();
+  memoChecklist.push({ id: uid(), text: '', done: false });
+  rerenderBody(); triggerMemoSave();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('[data-cl-idx]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 30);
+}
+
+function removeClItem(idx) {
+  memoChecklist = getChecklistFromDOM();
+  memoChecklist.splice(idx, 1);
+  if (!memoChecklist.length) memoChecklist.push({ id: uid(), text: '', done: false });
+  rerenderBody(); triggerMemoSave();
+}
+
+function onClInput(idx, val) {
+  if (memoChecklist[idx]) memoChecklist[idx].text = val;
+  triggerMemoSave();
+}
+
+function onClKeydown(e, idx) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    memoChecklist = getChecklistFromDOM();
+    memoChecklist.splice(idx + 1, 0, { id: uid(), text: '', done: false });
+    rerenderBody();
+    setTimeout(() => {
+      document.querySelector(`[data-cl-idx="${idx + 1}"]`)?.focus();
+    }, 30);
+  }
+}
+
+// ── 컬러 ──
 async function setMemoColor(color) {
   if (!currentMemoId || !cloudReady()) return;
-  const memo = memos.find(m => m.id === currentMemoId);
-  if (!memo) return;
+  const memo = memos.find(m => m.id === currentMemoId); if (!memo) return;
   memo.color = color;
   const bg = MEMO_COLOR_BG[color] || '#FFFFFF';
   document.getElementById('memo-editor-panel').style.background = bg;
   renderMemoColorPicker(color);
   await sbClient.from('memos').update({ color })
     .eq('id', currentMemoId).eq('user_id', currentUser.id);
+  showSaveStatus('저장됨 ✓');
 }
 
 function renderMemoColorPicker(activeColor) {
