@@ -1687,35 +1687,87 @@ function parseDateTimeFromMemo(text) {
   return { dateKey: dateKey(detectedDate), timeStr, eventText, label };
 }
 
+function fmtTimeLabel(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const displayH = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  return ` ${h >= 12 ? '오후' : '오전'} ${displayH}시${m ? ` ${m}분` : ''}`;
+}
+
+function isMeetingLine(text) {
+  const hasParticle = /[가-힣](이랑|랑|와|과)/.test(text);
+  const hasMeal = /저녁|점심|아침|식사/.test(text);
+  const hasMeetWord = /약속|만남|만나/.test(text);
+  return hasParticle || (hasMeal && hasMeetWord);
+}
+
+function extractPersonName(text) {
+  const pm = text.match(/([가-힣]{1,5})(이랑|랑|와|과)/);
+  return pm ? pm[1] : null;
+}
+
+function extractMeal(text) {
+  if (text.includes('저녁')) return 'dinner';
+  if (text.includes('점심')) return 'lunch';
+  return '';
+}
+
 function autoScheduleFromMemo(memo) {
-  const fullText = ((memo.title || '') + ' ' + (memo.content || '')).trim();
-  const parsed = parseDateTimeFromMemo(fullText);
-  if (!parsed) return;
+  const combined = ((memo.title || '') + '\n' + (memo.content || '')).trim();
+  const lines = combined.split('\n').map(l => l.trim()).filter(l => l);
+  const created = [];
 
-  const data = load();
-  if (!data[parsed.dateKey]) data[parsed.dateKey] = { tasks: [], people: [] };
-  if (data[parsed.dateKey].tasks.some(t => t.text === parsed.eventText)) return; // 중복 방지
+  for (const line of lines) {
+    const parsed = parseDateTimeFromMemo(line);
+    if (!parsed) continue;
 
-  const newId = uid();
-  data[parsed.dateKey].tasks.push({ id: newId, text: parsed.eventText, done: false });
-  save(data);
-  if (cloudReady()) pushDay(parsed.dateKey);
+    const data = load();
+    if (!data[parsed.dateKey]) data[parsed.dateKey] = { tasks: [], people: [] };
+    const newId = uid();
 
-  let timeLabel = '';
-  if (parsed.timeStr) {
-    const [h, m] = parsed.timeStr.split(':').map(Number);
-    const displayH = h > 12 ? h - 12 : (h === 0 ? 12 : h);
-    timeLabel = ` ${h >= 12 ? '오후' : '오전'} ${displayH}시${m ? ` ${m}분` : ''}`;
+    if (isMeetingLine(parsed.eventText)) {
+      const personName = extractPersonName(parsed.eventText);
+      if (!personName) {
+        // 사람 이름 불명확 → 할일로 등록
+        if (data[parsed.dateKey].tasks.some(t => t.text === parsed.eventText)) continue;
+        data[parsed.dateKey].tasks.push({ id: newId, text: parsed.eventText, done: false });
+        created.push({ type: 'task', dateKey: parsed.dateKey, id: newId, label: parsed.label, timeStr: parsed.timeStr });
+      } else {
+        if (data[parsed.dateKey].people.some(p => p.name === personName)) continue;
+        const agenda = parsed.eventText.replace(/([가-힣]{1,5})(이랑|랑|와|과)\s*/, '').trim();
+        data[parsed.dateKey].people.push({
+          id: newId, name: personName, agenda,
+          timeFrom: parsed.timeStr, timeTo: '', meal: extractMeal(parsed.eventText), met: false
+        });
+        created.push({ type: 'person', dateKey: parsed.dateKey, id: newId, label: parsed.label, timeStr: parsed.timeStr, name: personName });
+      }
+    } else {
+      if (data[parsed.dateKey].tasks.some(t => t.text === parsed.eventText)) continue;
+      data[parsed.dateKey].tasks.push({ id: newId, text: parsed.eventText, done: false });
+      created.push({ type: 'task', dateKey: parsed.dateKey, id: newId, label: parsed.label, timeStr: parsed.timeStr });
+    }
+
+    save(data);
+    if (cloudReady()) pushDay(parsed.dateKey);
   }
 
-  showScheduleToast(`📅 ${parsed.label}${timeLabel} 일정에 추가됐어요`, () => {
-    const d2 = load();
-    if (d2[parsed.dateKey]) {
-      d2[parsed.dateKey].tasks = d2[parsed.dateKey].tasks.filter(t => t.id !== newId);
-      save(d2);
-      if (cloudReady()) pushDay(parsed.dateKey);
-      showToast('일정 추가를 취소했어요');
+  if (!created.length) return;
+
+  const msg = created.length === 1
+    ? `📅 ${created[0].label}${fmtTimeLabel(created[0].timeStr)} ${created[0].type === 'person' ? created[0].name + ' 약속' : '할일'} 추가됐어요`
+    : `📅 일정 ${created.length}개가 자동 등록됐어요`;
+
+  showScheduleToast(msg, () => {
+    const d = load();
+    const affectedKeys = [...new Set(created.map(c => c.dateKey))];
+    for (const item of created) {
+      if (!d[item.dateKey]) continue;
+      if (item.type === 'task') d[item.dateKey].tasks = d[item.dateKey].tasks.filter(t => t.id !== item.id);
+      else d[item.dateKey].people = d[item.dateKey].people.filter(p => p.id !== item.id);
     }
+    save(d);
+    affectedKeys.forEach(k => { if (cloudReady()) pushDay(k); });
+    showToast('일정 추가를 취소했어요');
   });
 }
 
