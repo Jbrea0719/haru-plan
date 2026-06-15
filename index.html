@@ -540,6 +540,53 @@
     .memo-empty-icon { font-size: 48px; margin-bottom: 12px; }
     .memo-empty-title { font-size: 16px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
     .memo-empty-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ─── MEMO EDITOR ─── */
+    .memo-editor-panel {
+      position: fixed; top: 0; bottom: 0;
+      left: 50%; transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px; z-index: 60;
+      display: flex; flex-direction: column;
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      background: var(--surface);
+    }
+    .memo-editor-panel.open { transform: translateX(-50%) translateY(0); }
+    .memo-editor-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 14px; border-bottom: 1px solid rgba(0,0,0,.08);
+      flex-shrink: 0; background: inherit;
+    }
+    .memo-editor-back {
+      border: none; background: none; font-size: 14px; font-weight: 600;
+      color: var(--accent); cursor: pointer; padding: 6px 8px; border-radius: 8px;
+      font-family: inherit; flex-shrink: 0; transition: background .15s;
+    }
+    .memo-editor-back:active { background: var(--accent-soft); }
+    .memo-color-picker { display: flex; gap: 6px; flex: 1; justify-content: center; }
+    .memo-color-dot {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid rgba(0,0,0,.12); cursor: pointer;
+      transition: transform .15s, border-color .15s; flex-shrink: 0;
+    }
+    .memo-color-dot.active { transform: scale(1.3); border-color: rgba(0,0,0,.4); }
+    .memo-color-dot:active { opacity: .7; }
+    .memo-save-status {
+      font-size: 12px; color: var(--text-muted); flex-shrink: 0;
+      min-width: 54px; text-align: right; transition: opacity .2s;
+    }
+    .memo-editor-title {
+      border: none; outline: none; padding: 18px 16px 8px;
+      font-size: 21px; font-weight: 700; font-family: inherit;
+      color: var(--text-primary); background: transparent; width: 100%;
+    }
+    .memo-editor-title::placeholder { color: var(--text-muted); font-weight: 400; }
+    .memo-editor-content {
+      flex: 1; border: none; outline: none; padding: 8px 16px 32px;
+      font-size: 15px; line-height: 1.75; font-family: inherit;
+      color: var(--text-primary); background: transparent;
+      resize: none; width: 100%;
+    }
+    .memo-editor-content::placeholder { color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -653,6 +700,19 @@
     <button class="panel-btn" onclick="pushAllDays();closeAccountPanel()">⬆ 내 데이터 전체 업로드</button>
     <button class="panel-btn danger" onclick="logout()">로그아웃</button>
   </div>
+</div>
+
+<!-- ══ MEMO EDITOR PANEL ══ -->
+<div class="memo-editor-panel" id="memo-editor-panel">
+  <div class="memo-editor-header">
+    <button class="memo-editor-back" onclick="closeMemoEditor()">← 닫기</button>
+    <div class="memo-color-picker" id="memo-color-picker"></div>
+    <div class="memo-save-status" id="memo-save-status"></div>
+  </div>
+  <input class="memo-editor-title" id="memo-editor-title" placeholder="제목"
+    oninput="triggerMemoSave()">
+  <textarea class="memo-editor-content" id="memo-editor-content"
+    placeholder="내용을 입력하세요..." oninput="triggerMemoSave()"></textarea>
 </div>
 
 <script>
@@ -1581,8 +1641,94 @@ function renderMemoList() {
   }).join('');
 }
 
+const MEMO_COLOR_KEYS = ['', 'yellow', 'green', 'blue', 'pink', 'red', 'purple'];
+let currentMemoId = null;
+let memoSaveTimer = null;
+
 function openMemoEditor(id) {
-  showToast('메모 편집기는 다음 업데이트에서 추가돼요 ✍️');
+  const memo = memos.find(m => m.id === id);
+  if (!memo) return;
+  currentMemoId = id;
+  const panel = document.getElementById('memo-editor-panel');
+  panel.style.background = MEMO_COLOR_BG[memo.color] || '#FFFFFF';
+  document.getElementById('memo-editor-title').value = memo.title || '';
+  document.getElementById('memo-editor-content').value = memo.content || '';
+  document.getElementById('memo-save-status').textContent = '';
+  renderMemoColorPicker(memo.color || '');
+  panel.classList.add('open');
+  setTimeout(() => {
+    const content = document.getElementById('memo-editor-content');
+    content.focus();
+    content.setSelectionRange(content.value.length, content.value.length);
+  }, 320);
+}
+
+function closeMemoEditor() {
+  clearTimeout(memoSaveTimer);
+  memoSaveTimer = null;
+  const memo = memos.find(m => m.id === currentMemoId);
+  if (memo) {
+    memo.title = document.getElementById('memo-editor-title').value;
+    memo.content = document.getElementById('memo-editor-content').value;
+    memo.updated_at = new Date().toISOString();
+    if (cloudReady()) {
+      sbClient.from('memos')
+        .update({ title: memo.title, content: memo.content, updated_at: memo.updated_at })
+        .eq('id', currentMemoId).eq('user_id', currentUser.id)
+        .then(({ error }) => { if (error) console.error('[memo close-save]', error); });
+    }
+  }
+  document.getElementById('memo-editor-panel').classList.remove('open');
+  currentMemoId = null;
+  renderMemoList();
+}
+
+function triggerMemoSave() {
+  const statusEl = document.getElementById('memo-save-status');
+  if (statusEl) statusEl.textContent = '저장 중...';
+  clearTimeout(memoSaveTimer);
+  memoSaveTimer = setTimeout(saveMemoNow, 1500);
+}
+
+async function saveMemoNow() {
+  if (!currentMemoId || !cloudReady()) return;
+  memoSaveTimer = null;
+  const title = document.getElementById('memo-editor-title').value;
+  const content = document.getElementById('memo-editor-content').value;
+  const memo = memos.find(m => m.id === currentMemoId);
+  if (!memo) return;
+  memo.title = title;
+  memo.content = content;
+  memo.updated_at = new Date().toISOString();
+  const { error } = await sbClient.from('memos')
+    .update({ title, content, updated_at: memo.updated_at })
+    .eq('id', currentMemoId).eq('user_id', currentUser.id);
+  const statusEl = document.getElementById('memo-save-status');
+  if (!statusEl) return;
+  if (error) { statusEl.textContent = '저장 실패'; console.error(error); return; }
+  statusEl.textContent = '저장됨 ✓';
+  setTimeout(() => { if (statusEl.textContent === '저장됨 ✓') statusEl.textContent = ''; }, 2000);
+}
+
+async function setMemoColor(color) {
+  if (!currentMemoId || !cloudReady()) return;
+  const memo = memos.find(m => m.id === currentMemoId);
+  if (!memo) return;
+  memo.color = color;
+  const bg = MEMO_COLOR_BG[color] || '#FFFFFF';
+  document.getElementById('memo-editor-panel').style.background = bg;
+  renderMemoColorPicker(color);
+  await sbClient.from('memos').update({ color })
+    .eq('id', currentMemoId).eq('user_id', currentUser.id);
+}
+
+function renderMemoColorPicker(activeColor) {
+  const el = document.getElementById('memo-color-picker'); if (!el) return;
+  el.innerHTML = MEMO_COLOR_KEYS.map(c =>
+    `<button class="memo-color-dot${c === activeColor ? ' active' : ''}"
+      style="background:${MEMO_COLOR_BG[c]}"
+      onclick="setMemoColor('${c}')"></button>`
+  ).join('');
 }
 
 // ═══════════════════════════════════════
